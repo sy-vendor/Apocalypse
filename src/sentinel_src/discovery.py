@@ -29,6 +29,9 @@ class LinkParser(HTMLParser):
 
 
 def _canonical_candidate(base_url: str, value: str) -> str | None:
+    value = value.strip().rstrip("\\")
+    if not value:
+        return None
     if value.startswith(("#", "data:", "javascript:", "mailto:", "tel:")):
         return None
     absolute = urljoin(base_url, value)

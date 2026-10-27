@@ -119,7 +119,7 @@ class CheckTests(unittest.TestCase):
     def test_discovery_stays_on_host_and_skips_risky_urls(self):
         body = '''<a href="/safe">safe</a><a href="/logout">logout</a>
         <a href="/search?q=x">query</a><a href="https://outside.example/x">outside</a>
-        <script src="/app.js"></script>'''
+        <script src="/app.js"></script><link href="/favicon.ico\\">'''
         urls = discover_urls("https://example.com/start", "text/html", body)
         self.assertEqual(urls, ["https://example.com/app.js", "https://example.com/safe"])
 
