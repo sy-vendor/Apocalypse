@@ -1,0 +1,39 @@
+# 根据用户截图整理；使用前必须在 valaSRC 官方页面核对实时范围与规则。
+[scope]
+allow_hosts = [
+  "51jiniu.com",
+  "51vala.com",
+  "*.51vala.com",
+  "vala.life",
+  "*.vala.life",
+  "u51.com",
+  "*.u51.com",
+  "xiaolanben.com",
+  "*.xiaolanben.com",
+  "*.51zhangdan.com",
+  "*.51zhangdan.cc",
+  "*.51rp.com",
+  "*.xiaoniu51.com",
+  "*.u51camp.com",
+  "*.51emonkey.com",
+  "*.51credit.com",
+]
+deny_hosts = []
+allow_http = false
+
+[scan]
+automation_allowed = true
+automation_timezone = "Asia/Shanghai"
+# 北京时间 09:00（含）至 21:00（不含）阻止批量、watch 和双账号差分。
+blocked_bulk_hours = [9, 21]
+requests_per_second = 0.2
+concurrency = 1
+timeout_seconds = 10.0
+max_body_bytes = 65536
+user_agent = "Sentinel-SRC/0.1 (authorized valaSRC testing; human review required)"
+crawl_enabled = true
+max_crawl_pages = 5
+max_crawl_depth = 1
+max_discovered_urls = 50
+excluded_finding_ids = []
+

@@ -1,0 +1,6 @@
+# 已在 valaSRC 实时页面核对过的完整 URL（可按需增删）。
+# 一键：sentinel-src auto --program vala --ack-authorized
+# 白天=低速单轮；晚上才批量/循环。51jiniu.com 当前无解析，已改用可访问资产。
+https://www.51vala.com/
+https://vala.life/
+https://www.xiaolanben.com/

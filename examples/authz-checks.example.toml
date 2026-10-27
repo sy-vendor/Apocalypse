@@ -1,0 +1,16 @@
+# Explicit object URLs only. Replace host/path/IDs with resources YOU created under each account.
+# {id} is required. Only GET is supported. Do not enumerate foreign IDs.
+
+[[checks]]
+name = "order-detail"
+url = "https://api.example.com/orders/{id}"
+id_a = "order_owned_by_account_a"
+id_b = "order_owned_by_account_b"
+method = "GET"
+
+[[checks]]
+name = "profile-private"
+url = "https://api.example.com/me/items/{id}"
+id_a = "item_owned_by_account_a"
+id_b = "item_owned_by_account_b"
+method = "GET"

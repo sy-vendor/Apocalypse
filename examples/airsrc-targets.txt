@@ -1,0 +1,4 @@
+# 每行必须是一个已经在 AirSRC 实时页面核对过的完整 URL。
+# 不要在这里填写通配符；不要把示例扩展为未明确授权的 airbnb.com 资产。
+https://zh.airbnb.com/
+

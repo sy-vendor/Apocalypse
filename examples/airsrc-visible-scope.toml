@@ -1,0 +1,20 @@
+# 仅转录用户截图中可见的 Web 资产；使用前必须在 AirSRC 页面核对实时范围。
+[scope]
+allow_hosts = ["*.airbnb.cn", "zh.airbnb.com"]
+deny_hosts = []
+allow_http = false
+
+[scan]
+requests_per_second = 1.0
+concurrency = 2
+timeout_seconds = 10.0
+max_body_bytes = 65536
+user_agent = "Sentinel-SRC/0.1 (authorized AirSRC testing; human review required)"
+
+# AirSRC 截图明确列为不接收项，因此不生成对应候选报告。
+excluded_finding_ids = ["missing-content-security-policy"]
+crawl_enabled = true
+max_crawl_pages = 10
+max_crawl_depth = 1
+max_discovered_urls = 100
+
