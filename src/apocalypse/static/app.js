@@ -39,18 +39,22 @@ btn_save_sso:'Save SSO',btn_sso_login:'Start SSO login',ticket_sync:'Ticket sync
 github_repo:'GitHub repo',base_url:'Base URL',jira_project:'Jira project key',snow_table:'ServiceNow table',
 webhook_url:'Webhook URL',token_env:'Token env var',jira_email_env:'Jira email env',btn_save_ticket:'Save config',
 modal_scan_title:'New website scan',modal_scan_sub:'Configure a scoped, non-destructive assessment.',
-target_url:'Target URL',scan_profile:'Scan profile',profile_safe:'Safe — passive checks, ~30 request budget',
-profile_balanced:'Balanced — harmless probes, ~100 request budget',profile_deep:'Deep — broader crawl, ~250 request budget',
+target_url:'Target URL',scan_profile:'Scan profile',
+profile_hunt:'Hunt — high request budget, recall-first heuristics',
+profile_safe:'Safe — passive checks, ~30 request budget',
+profile_balanced:'Balanced — harmless probes, ~400 request budget',profile_deep:'Deep — broader crawl, ~900 request budget',
 saved_login:'Saved login flow',none:'None',login_password:'Login password (this scan)',
 login_password_help:'Used once to expand ${APOCALYPSE_PASSWORD} when replaying a saved flow. Not stored. Leave empty if you use Cookie headers.',
 custom_headers:'Authentication / custom headers',
 custom_headers_help:'One per line. Values are used only for this scan and are not saved.',
 openapi_url:'OpenAPI / Swagger JSON URL',graphql_url:'GraphQL URL',
-opt_submit_forms:'POST form / JSON body canaries (Deep only)',opt_blind_scan:'Blind boolean/time SQLi heuristics (Deep only)',
+opt_submit_forms:'POST form / JSON body canaries (Deep/Hunt)',opt_blind_scan:'Blind boolean/time SQLi heuristics (Deep/Hunt; on by default for Hunt)',
 opt_api_probe:'API probing (OpenAPI / GraphQL args)',opt_browser_verify:'Browser XSS verification (dialog)',
 oast_url:'OAST collaborator base URL',oast_listen:'OAST listen (lab)',secondary_headers:'Secondary session headers (IDOR)',
+secondary_headers_help:'Strongly recommended: another account Cookie for dual-session IDOR. Single-session scans still run unauth + ID-mutation checks.',
 policy_json:'Policy JSON (optional)',opt_private:'Allow private/local target',
 scan_ack:'I confirm I own this target or have explicit authorization to test it.',cancel:'Cancel',btn_start_scan:'Start scan',
+filter_category:'Category',all_categories:'All categories',filter_verified_only:'Verified only',heuristic:'Heuristic',
 col_target:'Target',col_status:'Status',col_profile:'Profile',col_findings:'Findings',col_created:'Created',
 empty_scans:'No scans yet.',empty_findings:'No vulnerabilities recorded.',empty_steps:'No steps yet.',empty_flows:'No saved flows.',
 empty_campaigns:'No campaigns.',empty_users:'Local open mode (no users).',empty_tenants:'Default tenant only.',empty_tickets:'No tickets synced.',
@@ -107,18 +111,22 @@ btn_save_sso:'保存 SSO',btn_sso_login:'开始 SSO 登录',ticket_sync:'工单�
 github_repo:'GitHub 仓库',base_url:'Base URL',jira_project:'Jira 项目 Key',snow_table:'ServiceNow 表',
 webhook_url:'Webhook URL',token_env:'Token 环境变量',jira_email_env:'Jira 邮箱环境变量',btn_save_ticket:'保存配置',
 modal_scan_title:'新建网站扫描',modal_scan_sub:'配置一次限定范围、非破坏性的评估。',
-target_url:'目标 URL',scan_profile:'扫描配置档',profile_safe:'Safe — 被动检查，约 30 请求',
-profile_balanced:'Balanced — 无害探针，约 100 请求',profile_deep:'Deep — 更广爬取，约 250 请求',
+target_url:'目标 URL',scan_profile:'扫描配置档',
+profile_hunt:'Hunt — 高请求、偏检出、含启发式',
+profile_safe:'Safe — 被动检查，约 30 请求',
+profile_balanced:'Balanced — 无害探针，约 400 请求',profile_deep:'Deep — 更广爬取，约 900 请求',
 saved_login:'已保存登录流程',none:'无',login_password:'登录密码（本次扫描）',
 login_password_help:'仅用于展开 ${APOCALYPSE_PASSWORD} 以重放已保存流程，不会入库。用 Cookie 时可留空。',
 custom_headers:'认证 / 自定义请求头',
 custom_headers_help:'每行一条。仅用于本次扫描，不会持久保存。',
 openapi_url:'OpenAPI / Swagger JSON URL',graphql_url:'GraphQL URL',
-opt_submit_forms:'POST 表单 / JSON 体探针（仅 Deep）',opt_blind_scan:'盲注布尔/时间型启发式（仅 Deep）',
+opt_submit_forms:'POST 表单 / JSON 体探针（Deep/Hunt）',opt_blind_scan:'盲注布尔/时间型启发式（Deep/Hunt；Hunt 默认开启）',
 opt_api_probe:'API 探测（OpenAPI / GraphQL 参数）',opt_browser_verify:'浏览器 XSS 验证（弹窗）',
 oast_url:'OAST Collaborator Base URL',oast_listen:'OAST 监听（实验室）',secondary_headers:'第二会话请求头（IDOR）',
+secondary_headers_help:'强烈建议填另一个账号 Cookie，用于双会话越权对比；仅单会话时仍会跑未登录差分与 ID 变异。',
 policy_json:'策略 JSON（可选）',opt_private:'允许私有/本地目标',
 scan_ack:'我确认拥有该目标或已获明确授权进行测试。',cancel:'取消',btn_start_scan:'开始扫描',
+filter_category:'类别',all_categories:'全部类别',filter_verified_only:'仅已验证',heuristic:'启发式',
 col_target:'目标',col_status:'状态',col_profile:'配置档',col_findings:'发现',col_created:'创建时间',
 empty_scans:'暂无扫描。',empty_findings:'暂无漏洞记录。',empty_steps:'暂无步骤。',empty_flows:'暂无已保存流程。',
 empty_campaigns:'暂无批量任务。',empty_users:'本地开放模式（无用户）。',empty_tenants:'仅默认租户。',empty_tickets:'暂无同步工单。',
@@ -225,7 +233,18 @@ function coverage(x){return `http ${x.discovered_http||0} / browser ${x.discover
 function baselineTip(x){const s=(x.baseline&&x.baseline.summary)||{};return t('coverage',{c:coverage(x),n:s.new||0,f:s.fixed||0,r:s.recurring||0})}
 function reportHref(id){return `/reports/${esc(id)}.html?lang=${esc(state.lang)}`}
 function scanRows(items){if(!items.length)return `<p class="empty">${esc(t('empty_scans'))}</p>`;return `<div class="data-row header"><span>${esc(t('col_target'))}</span><span>${esc(t('col_status'))}</span><span>${esc(t('col_profile'))}</span><span>${esc(t('col_findings'))}</span><span>${esc(t('col_created'))}</span><span></span></div>`+items.map(x=>`<div class="data-row scan-row"><a class="target" href="${reportHref(x.id)}" target="_blank">${esc(x.target)}</a>${status(x.status)}<span title="${esc(baselineTip(x))}">${esc(x.profile)}</span><b title="${esc(baselineTip(x))}">${x.findings}</b><span>${new Date(x.created_at).toLocaleString(state.lang==='zh'?'zh-CN':'en')}</span><button class="text-button" data-del-scan="${esc(x.id)}" title="${esc(t('btn_delete'))}">${esc(t('btn_delete'))}</button></div>`).join('')}
-function findingRows(items){if(!items.length)return `<p class="empty">${esc(t('empty_findings'))}</p>`;return items.map(x=>`<div class="finding-row">${severity(x.severity)}<b>${esc(x.title)}${x.verified?`<em class="verified">${esc(t('verified'))}</em>`:''}</b><span class="target">${esc(x.url)}</span><span>${esc(x.category)}</span><button class="text-button" data-ticket-scan="${esc(x.scan_id)}" data-ticket-finding="${esc(x.id)}">${esc(t('btn_ticket'))}</button></div>`).join('')}
+function findingRows(items){if(!items.length)return `<p class="empty">${esc(t('empty_findings'))}</p>`;return items.map(x=>`<div class="finding-row">${severity(x.severity)}<b>${esc(x.title)}${x.verified?`<em class="verified">${esc(t('verified'))}</em>`:`<em class="heuristic">${esc(t('heuristic'))}</em>`}</b><span class="target">${esc(x.url)}</span><span>${esc(x.category)}</span><button class="text-button" data-ticket-scan="${esc(x.scan_id)}" data-ticket-finding="${esc(x.id)}">${esc(t('btn_ticket'))}</button></div>`).join('')}
+function filteredFindings(){
+  const sev=$('#severity-filter')?.value||'';
+  const cat=$('#category-filter')?.value||'';
+  const verifiedOnly=$('#verified-only')?.checked;
+  return state.findings.filter(x=>{
+    if(sev&&x.severity!==sev)return false;
+    if(cat&&String(x.category||'')!==cat)return false;
+    if(verifiedOnly&&!x.verified)return false;
+    return true;
+  });
+}
 function currentFlow(){return{start_url:$('#login-start').value.trim(),success_url_contains:$('#login-success').value.trim()||null,steps:state.steps.map(s=>({action:s.action,url:s.url||undefined,selector:s.selector||undefined,value:s.value||undefined,contains:s.contains||undefined,secret:!!s.secret}))}}
 function renderSteps(){$('#login-steps').innerHTML=state.steps.map((s,i)=>`<div class="step-row"><select data-k="action" data-i="${i}"><option ${s.action==='goto'?'selected':''}>goto</option><option ${s.action==='fill'?'selected':''}>fill</option><option ${s.action==='click'?'selected':''}>click</option><option ${s.action==='wait_for_url'?'selected':''}>wait_for_url</option><option ${s.action==='wait_for_selector'?'selected':''}>wait_for_selector</option><option ${s.action==='wait'?'selected':''}>wait</option></select><input data-k="selector" data-i="${i}" placeholder="selector / url / contains" value="${esc(s.selector||s.url||s.contains||'')}"><input data-k="value" data-i="${i}" placeholder="value / ${'{ENV}'}" value="${esc(s.value||'')}"><button class="text-button" data-del="${i}">✕</button></div>`).join('')||`<p class="empty">${esc(t('empty_steps'))}</p>`;$('#login-preview').textContent=JSON.stringify(currentFlow(),null,2);enhanceSelects()}
 function flowLabel(f){return `${f.name} · ${f.id}`}
@@ -307,7 +326,7 @@ function renderQuality(){
   else if(meta.stale&&meta.note)summary=meta.note;
   $('#quality-summary').textContent=summary;
 }
-function render(){const d=state.dashboard,s=d.findings_by_severity||{};$('#metric-scans').textContent=d.total_scans||0;$('#metric-findings').textContent=d.total_findings||0;$('#metric-high').textContent=(s.critical||0)+(s.high||0);$('#metric-running').textContent=(d.scans_by_status?.running||0)+(d.scans_by_status?.queued||0);$('#recent-scans').innerHTML=scanRows(state.scans.slice(0,7));$('#all-scans').innerHTML=scanRows(state.scans);const filter=$('#severity-filter').value;$('#all-findings').innerHTML=findingRows(state.findings.filter(x=>!filter||x.severity===filter));const max=Math.max(1,...Object.values(s));$('#severity-chart').innerHTML=['critical','high','medium','low','info'].map(k=>`<div class="bar-row"><span>${k}</span><div class="bar"><i style="width:${((s[k]||0)/max)*100}%"></i></div><b>${s[k]||0}</b></div>`).join('');renderSteps();renderFlows();renderCampaigns();renderTeam();renderQuality();enhanceSelects()}
+function render(){const d=state.dashboard,s=d.findings_by_severity||{};$('#metric-scans').textContent=d.total_scans||0;$('#metric-findings').textContent=d.total_findings||0;$('#metric-high').textContent=(s.critical||0)+(s.high||0);$('#metric-running').textContent=(d.scans_by_status?.running||0)+(d.scans_by_status?.queued||0);$('#recent-scans').innerHTML=scanRows(state.scans.slice(0,7));$('#all-scans').innerHTML=scanRows(state.scans);$('#all-findings').innerHTML=findingRows(filteredFindings());const max=Math.max(1,...Object.values(s));$('#severity-chart').innerHTML=['critical','high','medium','low','info'].map(k=>`<div class="bar-row"><span>${k}</span><div class="bar"><i style="width:${((s[k]||0)/max)*100}%"></i></div><b>${s[k]||0}</b></div>`).join('');renderSteps();renderFlows();renderCampaigns();renderTeam();renderQuality();enhanceSelects()}
 async function refresh(){try{const [d,s,f,lf,c,u,tk,q]=await Promise.all([api('/api/dashboard'),api('/api/scans'),api('/api/findings'),api('/api/login-flows'),api('/api/campaigns'),api('/api/users').catch(()=>({users:[],tenants:[],sso:null})),api('/api/tickets').catch(()=>({tickets:[],config:null})),api('/api/quality').catch(()=>null)]);state.dashboard=d;state.scans=s.scans;state.findings=f.findings;state.flows=lf.flows||[];state.campaigns=c.campaigns||[];state.users=u.users||[];state.tenants=u.tenants||[];state.sso=u.sso;state.tickets=tk.tickets||[];state.ticketConfig=tk.config;state.quality=q;if(u.auth_required)$('#auth-banner').style.display='block';render()}catch(e){toast(e.message)}}
 function showView(name,skipNav){$$('.view').forEach(x=>x.classList.remove('active'));$(`#${name}-view`)?.classList.add('active');if(!skipNav)$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===name));const map={dashboard:['page_dashboard_title','page_dashboard_sub'],scans:['page_scans_title','page_scans_sub'],findings:['page_findings_title','page_findings_sub'],login:['page_login_title','page_login_sub'],campaigns:['page_campaigns_title','page_campaigns_sub'],quality:['page_quality_title','page_quality_sub'],team:['page_team_title','page_team_sub']};const keys=map[name]||map.dashboard;$('#page-title').textContent=t(keys[0]);$('#page-subtitle').textContent=t(keys[1])}
 
@@ -330,7 +349,15 @@ function syncLoginPasswordField(){
   }
   if(!on){const pw=$('#login-password');if(pw)pw.value=''}
 }
-$('#new-scan').onclick=()=>{$('#scan-dialog').showModal();renderFlows();syncLoginPasswordField()};$('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>{$('#scan-dialog').close();syncLoginPasswordField()};$('#severity-filter').onchange=render;$('#refresh-scans').onclick=refresh;
+$('#new-scan').onclick=()=>{$('#scan-dialog').showModal();renderFlows();syncLoginPasswordField();syncHuntDefaults()};$('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>{$('#scan-dialog').close();syncLoginPasswordField()};$('#severity-filter').onchange=render;$('#category-filter')&&($('#category-filter').onchange=render);$('#verified-only')&&($('#verified-only').onchange=render);$('#refresh-scans').onclick=refresh;
+function syncHuntDefaults(){
+  const profile=$('#profile')?.value||'safe';
+  if(profile==='hunt'){
+    if($('#blind-inject'))$('#blind-inject').checked=true;
+    if($('#browser-verify'))$('#browser-verify').checked=true;
+  }
+}
+$('#profile')?.addEventListener('change',syncHuntDefaults);
 $('#quality-run').onclick=async()=>{
   try{
     if(state.quality?.run?.status==='running'){toast(t('quality_already_running'));return}

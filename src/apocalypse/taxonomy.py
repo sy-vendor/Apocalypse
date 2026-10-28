@@ -38,6 +38,8 @@ RULE_TAXONOMY: dict[str, dict[str, str]] = {
     "ssrf.oast-callback": {"cwe": "CWE-918", "owasp": "A10:2021", "cwe_name": "Server-Side Request Forgery"},
     "graphql.introspection-enabled": {"cwe": "CWE-200", "owasp": "A05:2021", "cwe_name": "Exposure of Sensitive Information"},
     "authz.idor-differential": {"cwe": "CWE-639", "owasp": "A01:2021", "cwe_name": "Authorization Bypass Through User-Controlled Key"},
+    "authz.unauth-access": {"cwe": "CWE-306", "owasp": "A01:2021", "cwe_name": "Missing Authentication for Critical Function"},
+    "authz.idor-id-mutation": {"cwe": "CWE-639", "owasp": "A01:2021", "cwe_name": "Authorization Bypass Through User-Controlled Key"},
     "auth.login-replay-failed": {"cwe": "CWE-287", "owasp": "A07:2021", "cwe_name": "Improper Authentication"},
     "auth.session-expired": {"cwe": "CWE-613", "owasp": "A07:2021", "cwe_name": "Insufficient Session Expiration"},
 }

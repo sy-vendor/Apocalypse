@@ -46,11 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument(
         "--submit-forms", action="store_true",
-        help="allow bounded non-password POST form canaries (deep profile only)",
+        help="allow bounded non-password POST form canaries (deep/hunt profile only)",
     )
     scan.add_argument(
         "--blind-inject", action="store_true",
-        help="enable bounded boolean/time-based SQLi heuristics (deep profile only)",
+        help="enable bounded boolean/time-based SQLi heuristics (deep/hunt profile only)",
     )
     scan.add_argument(
         "--openapi-url", help="same-scope OpenAPI/Swagger JSON URL used to seed read-only API discovery",
@@ -246,10 +246,10 @@ def main() -> None:
             )
         except (ValueError, json.JSONDecodeError, OSError) as exc:
             parser.error(str(exc))
-        if args.submit_forms and args.profile != "deep":
-            parser.error("--submit-forms requires --profile deep")
-        if args.blind_inject and args.profile != "deep":
-            parser.error("--blind-inject requires --profile deep")
+        if args.submit_forms and args.profile not in {"deep", "hunt"}:
+            parser.error("--submit-forms requires --profile deep or hunt")
+        if args.blind_inject and args.profile not in {"deep", "hunt"}:
+            parser.error("--blind-inject requires --profile deep or hunt")
         if args.oast_listen and args.oast_url:
             parser.error("use either --oast-listen or --oast-url, not both")
         if args.secondary_header and not args.header:

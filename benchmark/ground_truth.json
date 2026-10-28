@@ -1,15 +1,17 @@
 {
   "schema": 1,
-  "version": "2026-10-28.1",
+  "version": "2026-10-28.2",
   "scope": "benchmark/run_lab.py loopback fixture only",
   "curation": {
     "method": "manual source and expected-response audit",
     "reviewed_at": "2026-10-28",
     "reviewer": "sy",
-    "human_signoff": "sy"
+    "human_signoff": "sy",
+    "notes": "v2026-10-28.2 adds hunt fixtures: generic param XSS, unauth object access, neighbor ID mutation"
   },
   "cases": [
     {"id":"xss-positive","family":"xss","rule_id":"xss.reflected-unencoded","path":"/xss","expected":"positive","reason":"q is inserted into HTML without encoding","review":{"status":"approved"}},
+    {"id":"xss-msg-positive","family":"xss","rule_id":"xss.reflected-unencoded","path":"/echo","expected":"positive","reason":"msg is inserted into HTML without encoding (non-classic param name)","review":{"status":"approved"}},
     {"id":"xss-negative","family":"xss","rule_id":"xss.reflected-unencoded","path":"/safe/xss","expected":"negative","reason":"q is HTML escaped with quote encoding","review":{"status":"approved"}},
     {"id":"sqli-positive","family":"sqli","rule_id":"sqli.error-based","path":"/sqli","expected":"positive","reason":"both quote canaries return a SQL syntax fingerprint","review":{"status":"approved"}},
     {"id":"sqli-negative","family":"sqli","rule_id":"sqli.error-based","path":"/safe/sqli","expected":"negative","reason":"input is rendered as data without a database error","review":{"status":"approved"}},
@@ -26,6 +28,10 @@
     {"id":"cookie-positive","family":"cookie-hardening","rule_id":"cookie.missing-flags","path":"/cookie","expected":"positive","reason":"session cookie omits HttpOnly and SameSite","review":{"status":"approved"}},
     {"id":"password-http-positive","family":"transport","rule_id":"form.password-over-http","path":"/login","expected":"positive","reason":"password form submits over plain HTTP","review":{"status":"approved"}},
     {"id":"idor-positive","family":"authorization","rule_id":"authz.idor-differential","path":"/api/users/42","expected":"positive","reason":"two distinct session cookies receive the identical object","review":{"status":"approved"}},
+    {"id":"idor-orders-dual-positive","family":"authorization","rule_id":"authz.idor-differential","path":"/api/orders/100","expected":"positive","reason":"two sessions receive the same order object","review":{"status":"approved"}},
+    {"id":"idor-private-dual-positive","family":"authorization","rule_id":"authz.idor-differential","path":"/api/private/7","expected":"positive","reason":"public private-object is identical across sessions","review":{"status":"approved"}},
+    {"id":"idor-unauth-positive","family":"authorization","rule_id":"authz.unauth-access","path":"/api/private/7","expected":"positive","reason":"authenticated object remains readable without Cookie","review":{"status":"approved"}},
+    {"id":"idor-mutation-positive","family":"authorization","rule_id":"authz.idor-id-mutation","path":"/api/orders/101","expected":"positive","reason":"mutating /api/orders/100 to neighbor 101 still returns an object-like 200 body","review":{"status":"approved"}},
     {"id":"idor-public-query-negative","family":"authorization","rule_id":"authz.idor-differential","path":"/sqli","expected":"negative","reason":"a public query endpoint returning the same result across sessions is not an authorization bypass","review":{"status":"approved"}},
     {"id":"idor-public-safe-query-negative","family":"authorization","rule_id":"authz.idor-differential","path":"/safe/sqli","expected":"negative","reason":"a public encoded query endpoint has no protected object boundary","review":{"status":"approved"}}
   ]

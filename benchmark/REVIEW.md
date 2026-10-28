@@ -16,4 +16,4 @@ The current cases were manually audited from source by Codex, but `human_signoff
 
 ## Current baseline
 
-Version `2026-10-28.1` contains 19 reviewed locations: 15 positives and 4 explicit negatives across 13 families. The accepted baseline is precision 1.0, recall 1.0, and F1 1.0. These numbers apply only to this controlled fixture and must be reported with the version and scope.
+Version `2026-10-28.2` contains 24 reviewed locations: 20 positives and 4 explicit negatives across authorization, XSS, and classic injection families. New hunt fixtures cover generic-parameter XSS (`/echo?msg=`), unauthenticated object access (`/api/private/7`), dual-session overlap on orders/private objects, and neighbor ID mutation (`/api/orders/100` → `101`). The accepted baseline remains precision 1.0, recall 1.0, and F1 1.0 on this controlled fixture only and must be reported with the version and scope.

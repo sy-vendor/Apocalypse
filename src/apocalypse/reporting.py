@@ -31,6 +31,7 @@ REPORT_I18N = {
         "empty": "No findings recorded.",
         "empty_hint": "Completed scans with no rule matches will show an empty list here.",
         "verified": "Verified",
+        "heuristic": "Heuristic — manual review",
         "url": "URL",
         "reflection": "Reflection context",
         "taxonomy": "Taxonomy",
@@ -65,6 +66,7 @@ REPORT_I18N = {
         "empty": "暂无漏洞记录。",
         "empty_hint": "扫描完成后若未命中规则，将显示为空列表。",
         "verified": "已验证",
+        "heuristic": "启发式，需人工复核",
         "url": "URL",
         "reflection": "反射上下文",
         "taxonomy": "分类",
@@ -117,7 +119,10 @@ def render_html(scan: dict[str, Any], *, lang: str | None = None) -> str:
     rows: list[str] = []
     for item in findings:
         evidence = html.escape(json.dumps(item.get("evidence", {}), ensure_ascii=False, indent=2))
-        verified = f'<span class="verified">{html.escape(i18n["verified"])}</span>' if item.get("verified") else ""
+        if item.get("verified"):
+            confidence_badge = f'<span class="verified">{html.escape(i18n["verified"])}</span>'
+        else:
+            confidence_badge = f'<span class="heuristic">{html.escape(i18n["heuristic"])}</span>'
         context = ""
         reflection = (item.get("evidence") or {}).get("reflection_context")
         if reflection:
@@ -136,7 +141,7 @@ def render_html(scan: dict[str, Any], *, lang: str | None = None) -> str:
         <article class="finding severity-{html.escape(item['severity'])}">
           <div class="finding-head">
             <span class="sev">{html.escape(item['severity'])}</span>
-            {verified}
+            {confidence_badge}
             <h2>{html.escape(item['title'])}</h2>
           </div>
           <p class="meta-line"><span>{html.escape(i18n['url'])}</span>
@@ -146,7 +151,7 @@ def render_html(scan: dict[str, Any], *, lang: str | None = None) -> str:
           {context}
           <div class="evidence">
             <div class="evidence-label">{html.escape(i18n['evidence'])}</div>
-            <pre>{evidence}</pre>
+          <pre>{evidence}</pre>
           </div>
           <p class="meta-line"><span>{html.escape(i18n['remediation'])}</span>
             {html.escape(item['remediation'])}</p>
@@ -269,6 +274,7 @@ def render_html(scan: dict[str, Any], *, lang: str | None = None) -> str:
     .severity-medium .sev {{ background:var(--warn-soft); color:var(--warn); }}
     .severity-low .sev {{ background:var(--info-soft); color:var(--info); }}
     .verified {{ background:var(--ok-soft); color:var(--ok); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:750; text-transform:uppercase; }}
+    .heuristic {{ background:var(--warn-soft); color:var(--warn); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:750; }}
     .meta-line {{ margin:8px 0; color:var(--ink-soft); }}
     .meta-line span {{ display:inline-block; min-width:5.5em; color:var(--muted); font-weight:650; font-size:12.5px; }}
     .meta-line a {{ color:var(--brand); text-decoration:none; word-break:break-all; }}

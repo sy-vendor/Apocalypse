@@ -34,7 +34,10 @@ COMMAND_ERROR = re.compile(
 )
 
 INJECTION_PARAM_HINT = re.compile(
-    r"(?i)^(?:id|ids|q|query|search|sort|order|filter|category|user|uid|item|page|offset|limit|name)$"
+    r"(?i)^(?:id|ids|q|query|search|keyword|term|msg|message|text|content|input|data|"
+    r"sort|order|filter|category|user|uid|item|page|offset|limit|name|file|path|"
+    r"filepath|filename|template|tpl|view|callback|redirect|redirect_uri|return|"
+    r"returnurl|next|url|continue|ref|dest|destination)$"
 )
 
 # Bounded delays only — never long sleep chains or stacked heavy payloads.

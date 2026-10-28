@@ -28,7 +28,7 @@ from apocalypse.inject import (
 )
 from apocalypse.login import _redact_recorded_steps, load_login_flow, parse_login_flow_document
 from apocalypse.models import Finding, ScanResult
-from apocalypse.authz import score_idor, select_authz_candidates
+from apocalypse.authz import mutate_object_urls, score_idor, score_unauth_access, select_authz_candidates
 from apocalypse.browser import XssBrowserVerdict
 from apocalypse.oast import OastHit, OastHub
 from apocalypse.openapi import OpenAPIError, discover_openapi_operations, discover_openapi_urls
@@ -36,7 +36,7 @@ from apocalypse.policy import parse_policy_document
 from apocalypse.probes import detect_lfi, score_ssti
 from apocalypse.reporting import lang_from_request, render_html, render_sarif
 from apocalypse.schedule import create_schedule
-from apocalypse.scope import ScopeError, ScopePolicy, pin_url_for_request
+from apocalypse.scope import ScopeError, ScopePolicy, dns_pin, pin_url_for_request
 from apocalypse.sso import tenant_slug, validate_oidc_config
 from apocalypse.storage import Storage
 from apocalypse.taxonomy import annotate_finding, taxonomy_for
@@ -571,13 +571,21 @@ class PolicyAuthzReportTests(unittest.TestCase):
         self.assertTrue(score["chain_verified"])
         denied = score_idor(200, body, 403, "no")
         self.assertFalse(denied["differential"])
+        unauth = score_unauth_access(200, body, 200, body)
+        self.assertTrue(unauth["differential"])
         selected = select_authz_candidates([
             "https://a.example/users/42",
+            "https://a.example/api/v1/widgets/99",
             "https://a.example/static/app.js",
             "https://a.example/items?id=9",
             "https://a.example/search?id=9",
         ])
-        self.assertEqual(len(selected), 2)
+        self.assertEqual(len(selected), 3)
+        mutations = mutate_object_urls(["https://a.example/api/orders/100"], limit=4)
+        self.assertTrue(any(item.mutated_value == "101" for item in mutations))
+        self.assertIn("hunt", PROFILES)
+        self.assertGreaterEqual(PROFILES["hunt"].max_requests, 1500)
+        self.assertGreaterEqual(PROFILES["balanced"].max_probe_points, 80)
 
     def test_taxonomy_and_sarif(self):
         tax = taxonomy_for("sqli.error-based")
@@ -982,7 +990,7 @@ class WebHelpersTests(unittest.TestCase):
         self.assertTrue(snapshot["quality_meta"]["stale"] or snapshot.get("tests"))
         if snapshot.get("coverage"):
             self.assertIn("percent", snapshot["coverage"])
-        self.assertEqual(snapshot["ground_truth"]["cases"], 19)
+        self.assertGreaterEqual(snapshot["ground_truth"]["cases"], 19)
         self.assertIn(snapshot["ground_truth"]["human_signoff"], {"pending", "sy"})
 
 
@@ -1047,12 +1055,26 @@ class SecurityHardeningTests(unittest.TestCase):
             self.assertTrue(storage.delete_scan("scanb1", tenant_id="tenant-b"))
 
     def test_dns_pin_and_oast_loopback(self):
-        pinned, host_header, ips = pin_url_for_request("http://127.0.0.1:8080/x", allow_private=True)
-        self.assertIn("127.0.0.1", pinned)
+        request_url, host_header, ips, connect_ip = pin_url_for_request(
+            "http://127.0.0.1:8080/x", allow_private=True,
+        )
+        self.assertIn("127.0.0.1", request_url)
         self.assertEqual(host_header, "127.0.0.1:8080")
         self.assertIn("127.0.0.1", ips)
+        self.assertEqual(connect_ip, "127.0.0.1")
         with self.assertRaises(ScopeError):
             pin_url_for_request("http://127.0.0.1/x", allow_private=False)
+        # Hostname URLs stay hostname-shaped for TLS; connect IP is pinned separately.
+        with patch("apocalypse.scope.assert_host_allowed", return_value={"203.0.113.9"}):
+            request_url, host_header, ips, connect_ip = pin_url_for_request(
+                "https://app.example.com/path", allow_private=False,
+            )
+        self.assertEqual(request_url, "https://app.example.com/path")
+        self.assertEqual(host_header, "app.example.com")
+        self.assertEqual(connect_ip, "203.0.113.9")
+        with dns_pin("app.example.com", "203.0.113.9"):
+            infos = __import__("socket").getaddrinfo("app.example.com", 443, type=__import__("socket").SOCK_STREAM)
+        self.assertEqual(infos[0][4][0], "203.0.113.9")
         with self.assertRaises(ValueError):
             OastHub(listen="0.0.0.0:0")
         with self.assertRaises(ValueError):

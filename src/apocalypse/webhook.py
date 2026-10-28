@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .models import ScanResult
-from .scope import ScopeError, assert_host_allowed, pin_url_for_request
+from .scope import ScopeError, assert_host_allowed, dns_pin, pin_url_for_request
 
 
 def validate_webhook_url(url: str | None, *, allow_private: bool = False) -> str | None:
@@ -69,14 +69,17 @@ def scan_webhook_payload(result: ScanResult) -> dict[str, Any]:
 
 
 async def deliver_webhook(url: str, payload: dict[str, Any], *, timeout: float = 10.0) -> None:
-    # Re-resolve and pin immediately before connect to shrink DNS-rebinding windows.
-    pinned, host_header, _ = pin_url_for_request(url, allow_private=False)
+    # Re-resolve and pin DNS immediately before connect; keep hostname URL for TLS.
+    request_url, host_header, _, connect_ip = pin_url_for_request(url, allow_private=False)
     headers = {
         "User-Agent": "Apocalypse-Webhook/0.6",
         "Host": host_header,
         "Content-Type": "application/json",
     }
-    extensions = {"sni_hostname": urlsplit(url).hostname} if pinned.startswith("https://") else None
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-        response = await client.post(pinned, json=payload, headers=headers, extensions=extensions)
-        response.raise_for_status()
+    hostname = urlsplit(url).hostname
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(timeout, pool=min(10.0, timeout)), follow_redirects=False,
+    ) as client:
+        with dns_pin(hostname, connect_ip):
+            response = await client.post(request_url, json=payload, headers=headers)
+            response.raise_for_status()

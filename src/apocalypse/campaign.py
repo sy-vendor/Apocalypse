@@ -48,10 +48,10 @@ def create_campaign(storage: Storage, spec: CampaignSpec) -> dict[str, Any]:
         raise ValueError("unknown scan profile")
     if not 1 <= spec.concurrency <= 8:
         raise ValueError("concurrency must be between 1 and 8")
-    if spec.blind_inject and spec.profile != "deep":
-        raise ValueError("blind injection requires the deep profile")
-    if spec.submit_forms and spec.profile != "deep":
-        raise ValueError("form submission requires the deep profile")
+    if spec.blind_inject and spec.profile not in {"deep", "hunt"}:
+        raise ValueError("blind injection requires the deep or hunt profile")
+    if spec.submit_forms and spec.profile not in {"deep", "hunt"}:
+        raise ValueError("form submission requires the deep or hunt profile")
     targets = validate_targets(spec.targets)
     item = {
         "id": secrets.token_hex(6),

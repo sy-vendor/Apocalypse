@@ -248,11 +248,31 @@ async def replay_login_flow(flow: LoginFlow, *, target: str, navigation_timeout_
                     errors.append(f"step {index} {step.action}: {type(exc).__name__}: {exc}")
                     break
 
+            # Recording captures success_url after the user finishes navigating; replay must wait
+            # for the same destination. A bare click/submit often leaves page.url on the login
+            # page for hundreds of ms (SPA / 302), which previously caused false failures.
             final_url = page.url
+            if (
+                not errors
+                and flow.success_url_contains
+                and flow.success_url_contains not in final_url
+            ):
+                try:
+                    await page.wait_for_function(
+                        "(value) => String(location.href).includes(value)",
+                        arg=flow.success_url_contains,
+                        timeout=max(navigation_timeout_ms, 15_000),
+                    )
+                    final_url = page.url
+                except PlaywrightError:
+                    final_url = page.url
             ok = not errors
             if flow.success_url_contains and flow.success_url_contains not in final_url:
                 ok = False
-                errors.append(f"success_url_contains not matched: {flow.success_url_contains}")
+                errors.append(
+                    f"success_url_contains not matched: {flow.success_url_contains} "
+                    f"(final_url={final_url})"
+                )
             cookie_header = _cookie_header_from_context_cookies(await context.cookies(), target)
             await context.close()
             await browser.close()
@@ -450,6 +470,19 @@ async def record_login_interactively(
     document = _redact_recorded_steps(events, start_url)
     if final_url and document.get("success_url_contains") is None:
         document["success_url_contains"] = urlsplit(final_url).path or "/"
+    # Ensure replay waits for the recorded success path instead of racing the last click.
+    success = document.get("success_url_contains")
+    steps = document.get("steps") if isinstance(document.get("steps"), list) else []
+    already_waits = any(
+        isinstance(step, dict)
+        and step.get("action") == "wait_for_url"
+        and success
+        and success in str(step.get("contains") or "")
+        for step in steps
+    )
+    if success and not already_waits:
+        steps.append({"action": "wait_for_url", "contains": str(success), "timeout_ms": 20000})
+        document["steps"] = steps
     parse_login_flow_document(document, expand_secrets=False)
     return document
 

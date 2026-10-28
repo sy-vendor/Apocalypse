@@ -54,17 +54,29 @@ class LabHandler(BaseHTTPRequestHandler):
         value = lambda name: params.get(name, [""])[0]
         if path == "/":
             links = [
-                "/xss?q=hello", "/safe/xss?q=hello", "/sqli?id=1", "/safe/sqli?id=1",
+                "/xss?q=hello", "/safe/xss?q=hello", "/echo?msg=hello", "/sqli?id=1", "/safe/sqli?id=1",
                 "/cmd?q=hello", "/file?file=readme.txt", "/template?template=hello",
                 "/redirect?next=/home", "/ssrf?url=http://example.invalid/",
                 "/secret", "/stack", "/listing", "/cookie", "/cors-wildcard",
-                "/login", "/api/users/42",
+                "/login", "/api/users/42", "/api/orders/100", "/api/private/7",
             ]
             origin = self.headers.get("Origin")
             headers = {"Access-Control-Allow-Origin": origin} if origin else {}
             return "".join(f'<a href="{link}">{link}</a>' for link in links), 200, headers
+        if path == "/robots.txt":
+            return "User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: /sitemap.xml\n", 200, {
+                "Content-Type": "text/plain; charset=utf-8",
+            }
+        if path == "/sitemap.xml":
+            return (
+                '<?xml version="1.0"?><urlset><url><loc>/echo?msg=hello</loc></url>'
+                "<url><loc>/api/orders/100</loc></url></urlset>"
+            ), 200, {"Content-Type": "application/xml"}
         if path == "/xss":
             return f"<main>{value('q')}</main>", 200, {}
+        if path == "/echo":
+            # Generic non-hint-name reflection for hunting param coverage (`msg`).
+            return f"<main>{value('msg')}</main>", 200, {}
         if path == "/safe/xss":
             return f"<main>{html.escape(value('q'), quote=True)}</main>", 200, {}
         if path == "/sqli":
@@ -112,8 +124,40 @@ class LabHandler(BaseHTTPRequestHandler):
         if path == "/login":
             form = '<form method="post" action="http://127.0.0.1/login"><input type="password" name="password"></form>'
             return form, 200, {}
-        if path == "/api/users/42":
-            return '{"id":42,"email":"victim@example.test","role":"user"}', 200, {"Content-Type": "application/json"}
+        if path.startswith("/api/users/"):
+            user_id = path.rsplit("/", 1)[-1]
+            # Dual-session IDOR fixture: only id 42 exists; requires any Cookie.
+            if user_id != "42":
+                return "not found", 404, {"Content-Type": "application/json"}
+            if not self.headers.get("Cookie"):
+                return '{"error":"unauthorized"}', 401, {"Content-Type": "application/json"}
+            return (
+                '{"id":42,"email":"victim@example.test","role":"user","profile":"lab-user-object"}',
+                200,
+                {"Content-Type": "application/json"},
+            )
+        if path.startswith("/api/orders/"):
+            order_id = path.rsplit("/", 1)[-1]
+            # Neighbor-ID fixture: 100 and 101 exist; require Cookie; unauth denied.
+            if order_id not in {"100", "101"}:
+                return "not found", 404, {"Content-Type": "application/json"}
+            if not self.headers.get("Cookie"):
+                return '{"error":"unauthorized"}', 401, {"Content-Type": "application/json"}
+            return (
+                f'{{"order_id":{order_id},"total":19.99,"status":"paid","items":[1,2,3],"note":"lab-order"}}',
+                200,
+                {"Content-Type": "application/json"},
+            )
+        if path.startswith("/api/private/"):
+            # Missing authentication: only object 7 is published and readable anonymously.
+            object_id = path.rsplit("/", 1)[-1]
+            if object_id != "7":
+                return "not found", 404, {"Content-Type": "application/json"}
+            return (
+                '{"secret_id":7,"note":"confidential lab object","balance":1200}',
+                200,
+                {"Content-Type": "application/json"},
+            )
         if path == "/home":
             return "home", 200, {}
         return "not found", 404, {}

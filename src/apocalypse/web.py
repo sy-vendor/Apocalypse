@@ -471,10 +471,10 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
                 return self._json({"error": "authorization acknowledgement is required"}, 400)
             if profile not in PROFILES:
                 return self._json({"error": "unknown scan profile"}, 400)
-            if submit_forms and profile != "deep":
-                return self._json({"error": "form submission requires the deep profile"}, 400)
-            if blind_inject and profile != "deep":
-                return self._json({"error": "blind injection requires the deep profile"}, 400)
+            if submit_forms and profile not in {"deep", "hunt"}:
+                return self._json({"error": "form submission requires the deep or hunt profile"}, 400)
+            if blind_inject and profile not in {"deep", "hunt"}:
+                return self._json({"error": "blind injection requires the deep or hunt profile"}, 400)
             if oast_url and oast_listen:
                 return self._json({"error": "use either oast_url or oast_listen, not both"}, 400)
             if not isinstance(raw_headers, dict):

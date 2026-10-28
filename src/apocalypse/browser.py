@@ -185,6 +185,8 @@ async def discover_with_browser(
     navigated: set[str] = set()
     queue: deque[str] = deque([target])
 
+    browser = None
+    context = None
     try:
         async with async_playwright() as playwright:
             browser = await launch_chromium(playwright, headless=True)
@@ -286,12 +288,22 @@ async def discover_with_browser(
                     await soft_navigate(final_url)
                 except PlaywrightError as exc:
                     result.errors.append(f"{url}: {type(exc).__name__}: {exc}")
-            await context.close()
-            await browser.close()
     except PlaywrightError as exc:
         raise BrowserUnavailable(
             "Chromium could not start; run 'playwright install chromium' and retry browser crawl"
         ) from exc
+    finally:
+        # Always tear down on cancel/timeout so the scan thread cannot stick on "running".
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:  # noqa: BLE001
+                pass
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     result.urls = sorted(discovered)
     return result
