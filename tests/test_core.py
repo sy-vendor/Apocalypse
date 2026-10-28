@@ -28,7 +28,10 @@ from apocalypse.inject import (
 )
 from apocalypse.login import _redact_recorded_steps, load_login_flow, parse_login_flow_document
 from apocalypse.models import Finding, ScanResult
-from apocalypse.authz import mutate_object_urls, score_idor, score_unauth_access, select_authz_candidates
+from apocalypse.authz import (
+    id_mutation_severity, looks_public_content_url, mutate_object_urls,
+    score_idor, score_unauth_access, select_authz_candidates,
+)
 from apocalypse.browser import XssBrowserVerdict
 from apocalypse.oast import OastHit, OastHub
 from apocalypse.openapi import OpenAPIError, discover_openapi_operations, discover_openapi_urls
@@ -579,8 +582,13 @@ class PolicyAuthzReportTests(unittest.TestCase):
             "https://a.example/static/app.js",
             "https://a.example/items?id=9",
             "https://a.example/search?id=9",
+            "https://a.example/help/1413",
+            "https://a.example/cn/s/7",
         ])
         self.assertEqual(len(selected), 3)
+        self.assertTrue(looks_public_content_url("https://open.ys7.com/help/1413"))
+        self.assertEqual(id_mutation_severity("https://open.ys7.com/help/1413", verified=True), ("info", "low"))
+        self.assertEqual(id_mutation_severity("https://a.example/api/orders/101", verified=True), ("high", "high"))
         mutations = mutate_object_urls(["https://a.example/api/orders/100"], limit=4)
         self.assertTrue(any(item.mutated_value == "101" for item in mutations))
         self.assertIn("hunt", PROFILES)

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .baseline import compare_findings
 from .authz import (
+    id_mutation_severity,
     mutate_object_urls,
     score_idor,
     score_unauth_access,
@@ -964,9 +965,13 @@ class ScanEngine:
                     if not score["differential"] and not alt:
                         continue
                     verified = bool(score["differential"])
+                    severity, confidence = id_mutation_severity(mutation.mutated_url, verified=verified)
+                    # Public/help content must never surface as high-severity IDOR noise.
+                    if severity == "info":
+                        continue
                     result.findings.append(Finding(
                         "authz.idor-id-mutation", "Neighbor object ID accepted by session",
-                        "high", "high" if verified else "medium", mutation.mutated_url,
+                        severity, confidence, mutation.mutated_url,
                         "Mutating a path/query object identifier still returned a successful object-like response for the same session.",
                         {
                             "selector": mutation.reason,
@@ -1387,14 +1392,19 @@ class ScanEngine:
             fingerprint_response(true_again_response.status_code, true_again_body),
         )
         if chain["differential"]:
+            verified = bool(chain["chain_verified"])
+            # Unstable true/false diffs (CDN/WAF/A-B) are common FPs — never mark those high.
+            severity = "high" if verified else "medium"
+            confidence = "high" if verified else "low"
             result.findings.append(Finding(
-                "sqli.boolean-blind", "Possible boolean-based blind SQL injection", "high",
-                "high" if chain["chain_verified"] else "medium", point.url,
+                "sqli.boolean-blind", "Possible boolean-based blind SQL injection", severity,
+                confidence, point.url,
                 "A true/false/true exploit-chain check found differential responses without extracting database contents.",
                 {"parameter": point.parameter, "method": point.method, "source": point.source,
-                 "location": point.location, **chain, "data_extraction_attempted": False, "exploit_chain": "boolean-TFT"},
+                 "location": point.location, **chain, "data_extraction_attempted": False,
+                 "exploit_chain": "boolean-TFT", "probe_family": "sqli", "hunt_mode": profile.name == "hunt"},
                 "Use parameterized queries and normalize error/empty-result handling.", "injection",
-                verified=bool(chain["chain_verified"]),
+                verified=verified,
             ))
 
         if result.stats.requests >= profile.max_requests:

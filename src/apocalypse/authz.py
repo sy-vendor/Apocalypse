@@ -23,6 +23,13 @@ API_NUMERIC_PATH = re.compile(r"(?i)/(?:api/)?(?:v\d+/)?(?:[\w.-]+/)*(\d{1,12})(
 UUID_PATH = re.compile(
     r"(?i)/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$|\?)"
 )
+# Public docs / marketing / help content — ID enumeration is expected, not account IDOR.
+PUBLIC_CONTENT_PATH = re.compile(
+    r"(?i)/(?:help|docs?|documentation|blog|news|article|articles|faq|support|"
+    r"wiki|guide|guides|tutorial|cn/s|en/s|zh/s|static|assets|media|download)(?:/|$)"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class AuthzCandidate:
     url: str
@@ -38,9 +45,41 @@ class ObjectMutation:
     reason: str
 
 
+def looks_public_content_url(url: str) -> bool:
+    """True for help/docs/content paths where neighboring IDs are normally public."""
+    path = urlsplit(url).path or "/"
+    return bool(PUBLIC_CONTENT_PATH.search(path))
+
+
+def looks_private_object_url(url: str) -> bool:
+    """True for API / account-shaped collections that warrant high-severity IDOR."""
+    path = urlsplit(url).path or "/"
+    if path.startswith("/api") or "/v1/" in path or "/v2/" in path:
+        return True
+    return bool(ID_PATH.search(path) or OBJECT_COLLECTION_PATH.search(path))
+
+
+def id_mutation_severity(url: str, *, verified: bool) -> tuple[str, str]:
+    """Return (severity, confidence) for an ID-mutation hit.
+
+    Public content pages are never high — at most informational noise.
+    High is reserved for private/API-shaped objects with a verified similar body.
+    """
+    if looks_public_content_url(url):
+        return "info", "low"
+    if looks_private_object_url(url) and verified:
+        return "high", "high"
+    if looks_private_object_url(url):
+        return "medium", "medium"
+    return "info", "low"
+
+
 def looks_object_url(url: str) -> AuthzCandidate | None:
     parsed = urlsplit(url)
     path = parsed.path or "/"
+    # Skip public content entirely — mutating /help/1412 is not authorization bypass.
+    if looks_public_content_url(url):
+        return None
     path_match = ID_PATH.search(path)
     if path_match:
         return AuthzCandidate(url, f"path-object:{path_match.group(1)[:40]}")
