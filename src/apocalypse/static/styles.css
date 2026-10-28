@@ -833,6 +833,8 @@ button, select, input, textarea { font: inherit; }
 }
 
 .text-button:hover { color: var(--brand-strong); }
+.text-button.danger { color: var(--danger, #b42318); }
+.text-button.danger:hover { color: var(--danger-strong, #912018); }
 
 .view { display: none; animation: rise 0.28s ease; }
 .view.active { display: block; }
@@ -1006,6 +1008,10 @@ label {
   margin: 14px 0;
   color: var(--ink-soft);
 }
+
+/* Author display:block would otherwise override the UA [hidden] rule. */
+label[hidden],
+#login-password-wrap[hidden] { display: none !important; }
 
 label > span { display: inline-block; margin-bottom: 2px; }
 

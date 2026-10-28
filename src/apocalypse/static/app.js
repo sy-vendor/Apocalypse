@@ -15,7 +15,7 @@ btn_new_scan:'＋ New scan',auth_banner:'API auth is enabled. Paste a Bearer tok
 metric_scans:'Total scans',metric_scans_sub:'assessment jobs',metric_findings:'Vulnerabilities',metric_findings_sub:'all severities',
 metric_high:'High risk',metric_high_sub:'critical + high',metric_running:'Running',metric_running_sub:'active scans',
 recent_scans:'Recent scans',view_all:'View all',risk_dist:'Risk distribution',scan_activity:'Scan activity',refresh:'Refresh',all_severities:'All severities',filter_severity:'Severity',
-login_record_title:'Interactive browser recording',login_record_help:'Launch a visible browser, complete login, then press <b>Done</b> in the page bar. Passwords are redacted to <code>${APOCALYPSE_PASSWORD}</code>.',
+login_record_title:'Interactive browser recording',login_record_help:'Launch a visible browser, complete login, then press <b>Done</b>. The draft lands in the editor only—click <b>Save flow</b> to store it. Passwords become <code>${APOCALYPSE_PASSWORD}</code> (set that env before replaying a saved flow). Prefer Cookie headers if you skip saved flows.',
 flow_name:'Flow name',start_url:'Start URL',btn_start_record:'Start browser recording',
 step_editor:'Step editor',btn_add_step:'＋ Add step',step_editor_help:'Edit a recorded flow or compose steps manually. Secrets use <code>${ENV}</code> placeholders.',
 success_url:'Success URL contains',btn_load_template:'Load template',btn_export_json:'Export JSON',btn_save_flow:'Save flow',
@@ -39,7 +39,9 @@ webhook_url:'Webhook URL',token_env:'Token env var',jira_email_env:'Jira email e
 modal_scan_title:'New website scan',modal_scan_sub:'Configure a scoped, non-destructive assessment.',
 target_url:'Target URL',scan_profile:'Scan profile',profile_safe:'Safe — passive checks, ~30 request budget',
 profile_balanced:'Balanced — harmless probes, ~100 request budget',profile_deep:'Deep — broader crawl, ~250 request budget',
-saved_login:'Saved login flow',none:'None',custom_headers:'Authentication / custom headers',
+saved_login:'Saved login flow',none:'None',login_password:'Login password (this scan)',
+login_password_help:'Used once to expand ${APOCALYPSE_PASSWORD} when replaying a saved flow. Not stored. Leave empty if you use Cookie headers.',
+custom_headers:'Authentication / custom headers',
 custom_headers_help:'One per line. Values are used only for this scan and are not saved.',
 openapi_url:'OpenAPI / Swagger JSON URL',graphql_url:'GraphQL URL',
 opt_submit_forms:'POST form / JSON body canaries (Deep only)',opt_blind_scan:'Blind boolean/time SQLi heuristics (Deep only)',
@@ -51,11 +53,11 @@ col_target:'Target',col_status:'Status',col_profile:'Profile',col_findings:'Find
 empty_scans:'No scans yet.',empty_findings:'No vulnerabilities recorded.',empty_steps:'No steps yet.',empty_flows:'No saved flows.',
 empty_campaigns:'No campaigns.',empty_users:'Local open mode (no users).',empty_tenants:'Default tenant only.',empty_tickets:'No tickets synced.',
 btn_edit:'Edit',btn_delete:'Delete',btn_run:'Run',btn_ticket:'Ticket',btn_sync:'Sync',btn_open:'open',verified:'Verified',
-toast_scan_queued:'Scan {id} queued',toast_scan_deleted:'Scan deleted',toast_flow_copied:'Flow JSON copied',toast_flow_saved:'Login flow saved',
-toast_record_done:'Browser recording completed',toast_campaign_created:'Campaign {id} created',toast_campaign_started:'Campaign started',
+toast_scan_queued:'Scan {id} queued',toast_scan_deleted:'Scan deleted',toast_flow_copied:'Flow JSON copied',toast_flow_saved:'Login flow saved',toast_flow_deleted:'Login flow deleted',confirm_delete_flow:'Delete login flow {name}?',
+toast_record_done:'Recording loaded into the editor — click Save flow to store it',toast_campaign_created:'Campaign {id} created',toast_campaign_started:'Campaign started',
 toast_user_created:'User created',toast_tenant_created:'Tenant created',toast_sso_saved:'SSO config saved',
 toast_ticket_saved:'Ticket config saved',toast_ticket_created:'Ticket created',toast_ticket_synced:'Ticket synced',
-record_status:'Recording {id}… complete login in the browser, then click Done',record_saved:'Recording saved',
+record_status:'Recording {id}… complete login in the browser, then click Done',record_saved:'Draft ready in editor — not saved until you click Save flow',
 sso_configured:'SSO configured · {issuer}',sso_complete:'Complete login in the IdP window, then paste the returned token above',
 token_save:'Save this token now: {token}',err_headers:'Headers must use Name: value format',err_auth:'Authentication required',err_request:'Request failed',
 coverage:'coverage: {c}; baseline new {n} / fixed {f} / recurring {r}'
@@ -73,7 +75,7 @@ btn_new_scan:'＋ 新建扫描',auth_banner:'已启用 API 认证。请粘贴 Be
 metric_scans:'扫描总数',metric_scans_sub:'评估任务',metric_findings:'漏洞',metric_findings_sub:'全部严重级别',
 metric_high:'高风险',metric_high_sub:'严重 + 高危',metric_running:'运行中',metric_running_sub:'进行中的扫描',
 recent_scans:'最近扫描',view_all:'查看全部',risk_dist:'风险分布',scan_activity:'扫描活动',refresh:'刷新',all_severities:'全部严重级别',filter_severity:'严重级别',
-login_record_title:'交互式浏览器录制',login_record_help:'启动可视浏览器，完成登录后点击页面栏中的 <b>Done</b>。密码会红化为 <code>${APOCALYPSE_PASSWORD}</code>。',
+login_record_title:'交互式浏览器录制',login_record_help:'启动可视浏览器，完成登录后点 <b>Done</b>。结果只填入编辑器，需点 <b>保存流程</b> 才入库。密码会红化为 <code>${APOCALYPSE_PASSWORD}</code>（重放已保存流程前请 export）。用 Cookie 扫描则不必保存流程。',
 flow_name:'流程名称',start_url:'起始 URL',btn_start_record:'开始浏览器录制',
 step_editor:'步骤编辑器',btn_add_step:'＋ 添加步骤',step_editor_help:'编辑已录制流程或手动编排步骤。密钥使用 <code>${ENV}</code> 占位符。',
 success_url:'成功 URL 包含',btn_load_template:'加载模板',btn_export_json:'导出 JSON',btn_save_flow:'保存流程',
@@ -97,7 +99,9 @@ webhook_url:'Webhook URL',token_env:'Token 环境变量',jira_email_env:'Jira �
 modal_scan_title:'新建网站扫描',modal_scan_sub:'配置一次限定范围、非破坏性的评估。',
 target_url:'目标 URL',scan_profile:'扫描配置档',profile_safe:'Safe — 被动检查，约 30 请求',
 profile_balanced:'Balanced — 无害探针，约 100 请求',profile_deep:'Deep — 更广爬取，约 250 请求',
-saved_login:'已保存登录流程',none:'无',custom_headers:'认证 / 自定义请求头',
+saved_login:'已保存登录流程',none:'无',login_password:'登录密码（本次扫描）',
+login_password_help:'仅用于展开 ${APOCALYPSE_PASSWORD} 以重放已保存流程，不会入库。用 Cookie 时可留空。',
+custom_headers:'认证 / 自定义请求头',
 custom_headers_help:'每行一条。仅用于本次扫描，不会持久保存。',
 openapi_url:'OpenAPI / Swagger JSON URL',graphql_url:'GraphQL URL',
 opt_submit_forms:'POST 表单 / JSON 体探针（仅 Deep）',opt_blind_scan:'盲注布尔/时间型启发式（仅 Deep）',
@@ -109,11 +113,11 @@ col_target:'目标',col_status:'状态',col_profile:'配置档',col_findings:'�
 empty_scans:'暂无扫描。',empty_findings:'暂无漏洞记录。',empty_steps:'暂无步骤。',empty_flows:'暂无已保存流程。',
 empty_campaigns:'暂无批量任务。',empty_users:'本地开放模式（无用户）。',empty_tenants:'仅默认租户。',empty_tickets:'暂无同步工单。',
 btn_edit:'编辑',btn_delete:'删除',btn_run:'运行',btn_ticket:'工单',btn_sync:'同步',btn_open:'打开',verified:'已验证',
-toast_scan_queued:'扫描 {id} 已入队',toast_scan_deleted:'扫描已删除',toast_flow_copied:'流程 JSON 已复制',toast_flow_saved:'登录流程已保存',
-toast_record_done:'浏览器录制已完成',toast_campaign_created:'批量任务 {id} 已创建',toast_campaign_started:'批量任务已启动',
+toast_scan_queued:'扫描 {id} 已入队',toast_scan_deleted:'扫描已删除',toast_flow_copied:'流程 JSON 已复制',toast_flow_saved:'登录流程已保存',toast_flow_deleted:'登录流程已删除',confirm_delete_flow:'确定删除登录流程 {name}？',
+toast_record_done:'录制已填入编辑器 — 点「保存流程」才会入库',toast_campaign_created:'批量任务 {id} 已创建',toast_campaign_started:'批量任务已启动',
 toast_user_created:'用户已创建',toast_tenant_created:'租户已创建',toast_sso_saved:'SSO 配置已保存',
 toast_ticket_saved:'工单配置已保存',toast_ticket_created:'工单已创建',toast_ticket_synced:'工单已同步',
-record_status:'正在录制 {id}… 请在浏览器中完成登录并点击 Done',record_saved:'录制已保存',
+record_status:'正在录制 {id}… 请在浏览器中完成登录并点击 Done',record_saved:'已填入编辑器（尚未入库，请点「保存流程」）',
 sso_configured:'SSO 已配置 · {issuer}',sso_complete:'请在 IdP 窗口完成登录，然后将返回的 Token 粘贴到上方',
 token_save:'请立即保存此 Token：{token}',err_headers:'请求头须使用 Name: value 格式',err_auth:'需要认证',err_request:'请求失败',
 coverage:'覆盖: {c}; 基线 新增 {n} / 已修复 {f} / 复发 {r}'
@@ -208,7 +212,8 @@ function scanRows(items){if(!items.length)return `<p class="empty">${esc(t('empt
 function findingRows(items){if(!items.length)return `<p class="empty">${esc(t('empty_findings'))}</p>`;return items.map(x=>`<div class="finding-row">${severity(x.severity)}<b>${esc(x.title)}${x.verified?`<em class="verified">${esc(t('verified'))}</em>`:''}</b><span class="target">${esc(x.url)}</span><span>${esc(x.category)}</span><button class="text-button" data-ticket-scan="${esc(x.scan_id)}" data-ticket-finding="${esc(x.id)}">${esc(t('btn_ticket'))}</button></div>`).join('')}
 function currentFlow(){return{start_url:$('#login-start').value.trim(),success_url_contains:$('#login-success').value.trim()||null,steps:state.steps.map(s=>({action:s.action,url:s.url||undefined,selector:s.selector||undefined,value:s.value||undefined,contains:s.contains||undefined,secret:!!s.secret}))}}
 function renderSteps(){$('#login-steps').innerHTML=state.steps.map((s,i)=>`<div class="step-row"><select data-k="action" data-i="${i}"><option ${s.action==='goto'?'selected':''}>goto</option><option ${s.action==='fill'?'selected':''}>fill</option><option ${s.action==='click'?'selected':''}>click</option><option ${s.action==='wait_for_url'?'selected':''}>wait_for_url</option><option ${s.action==='wait_for_selector'?'selected':''}>wait_for_selector</option><option ${s.action==='wait'?'selected':''}>wait</option></select><input data-k="selector" data-i="${i}" placeholder="selector / url / contains" value="${esc(s.selector||s.url||s.contains||'')}"><input data-k="value" data-i="${i}" placeholder="value / ${'{ENV}'}" value="${esc(s.value||'')}"><button class="text-button" data-del="${i}">✕</button></div>`).join('')||`<p class="empty">${esc(t('empty_steps'))}</p>`;$('#login-preview').textContent=JSON.stringify(currentFlow(),null,2);enhanceSelects()}
-function renderFlows(){$('#saved-flows').innerHTML=!state.flows.length?`<p class="empty">${esc(t('empty_flows'))}</p>`:state.flows.map(f=>`<div class="data-row"><span>${esc(f.name)}</span><span>${esc(f.id)}</span><button class="text-button" data-edit-flow="${esc(f.id)}">${esc(t('btn_edit'))}</button><button class="text-button" data-del-flow="${esc(f.id)}">${esc(t('btn_delete'))}</button></div>`).join('');const sel=$('#login-flow-id');const current=sel.value;sel.innerHTML=`<option value="">${esc(t('none'))}</option>`+state.flows.map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');sel.value=current;const wrap=sel.closest('.cselect');if(wrap)syncCSelect(wrap);else enhanceSelects()}
+function flowLabel(f){return `${f.name} · ${f.id}`}
+function renderFlows(){$('#saved-flows').innerHTML=!state.flows.length?`<p class="empty">${esc(t('empty_flows'))}</p>`:state.flows.map(f=>`<div class="data-row"><span title="${esc(f.id)}">${esc(f.name)}</span><span class="muted">${esc(f.id)}</span><button class="text-button" data-edit-flow="${esc(f.id)}">${esc(t('btn_edit'))}</button><button class="text-button danger" data-del-flow="${esc(f.id)}">${esc(t('btn_delete'))}</button></div>`).join('');const sel=$('#login-flow-id');const current=sel.value;sel.innerHTML=`<option value="">${esc(t('none'))}</option>`+state.flows.map(f=>`<option value="${esc(f.id)}">${esc(flowLabel(f))}</option>`).join('');sel.value=current;const wrap=sel.closest('.cselect');if(wrap)syncCSelect(wrap);else enhanceSelects();syncLoginPasswordField()}
 function renderCampaigns(){$('#campaign-list').innerHTML=!state.campaigns.length?`<p class="empty">${esc(t('empty_campaigns'))}</p>`:state.campaigns.map(c=>{const done=c.targets.filter(x=>x.status==='completed').length;return `<div class="data-row"><span>${esc(c.name)}</span>${status(c.status)}<span>${done}/${c.targets.length}</span><button class="text-button" data-run-campaign="${esc(c.id)}">${esc(t('btn_run'))}</button></div>`}).join('')}
 function syncTicketProvider(provider,opts={}){
   const p=provider||'github';
@@ -269,19 +274,30 @@ $$('.rail-item').forEach(x=>x.onclick=()=>showTeamTab(x.dataset.teamTab));
 $$('input[name="ticket-provider-ui"]').forEach(x=>x.onchange=()=>syncTicketProvider(x.value,{setDefaultToken:true}));
 syncTicketProvider('github');
 $('#lang-zh').onclick=()=>setLang('zh');$('#lang-en').onclick=()=>setLang('en');
-$('#new-scan').onclick=()=>{$('#scan-dialog').showModal();renderFlows()};$('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>$('#scan-dialog').close();$('#severity-filter').onchange=render;$('#refresh-scans').onclick=refresh;
+function syncLoginPasswordField(){
+  const wrap=$('#login-password-wrap');
+  const sel=$('#login-flow-id');
+  const on=!!(sel&&sel.value);
+  if(wrap){
+    wrap.hidden=!on;
+    wrap.setAttribute('aria-hidden',on?'false':'true');
+  }
+  if(!on){const pw=$('#login-password');if(pw)pw.value=''}
+}
+$('#new-scan').onclick=()=>{$('#scan-dialog').showModal();renderFlows();syncLoginPasswordField()};$('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>{$('#scan-dialog').close();syncLoginPasswordField()};$('#severity-filter').onchange=render;$('#refresh-scans').onclick=refresh;
+$('#login-flow-id').addEventListener('change',syncLoginPasswordField);
 $('#recent-scans').onclick=$('#all-scans').onclick=async e=>{if(!e.target.dataset.delScan)return;try{await api(`/api/scans/${e.target.dataset.delScan}`,{method:'DELETE'});toast(t('toast_scan_deleted'));await refresh()}catch(err){toast(err.message)}};
 $('#api-token')?.addEventListener('change',e=>{localStorage.setItem('apocalypse_token',e.target.value);refresh()});
 function headerObject(value){const headers={};for(const raw of value.split(/\r?\n/)){const line=raw.trim();if(!line)continue;const i=line.indexOf(':');if(i<1)throw new Error(t('err_headers'));headers[line.slice(0,i).trim()]=line.slice(i+1).trim()}return headers}
-$('#scan-form').onsubmit=async e=>{e.preventDefault();$('#form-error').textContent='';try{let policy=null;const rawPolicy=$('#policy-json').value.trim();if(rawPolicy)policy=JSON.parse(rawPolicy);const body={target:$('#target').value,profile:$('#profile').value,custom_headers:headerObject($('#custom-headers').value),secondary_headers:headerObject($('#secondary-headers').value),openapi_url:$('#openapi-url').value,browser_crawl:$('#browser-crawl').checked,browser_verify:$('#browser-verify').checked,graphql:$('#graphql').checked,graphql_url:$('#graphql-url').value,webhook_url:$('#webhook-url').value,submit_forms:$('#submit-forms').checked,blind_inject:$('#blind-inject').checked,api_probe:$('#api-probe').checked,oast_url:$('#oast-url').value,oast_listen:$('#oast-listen').value,policy,allow_private:$('#allow-private').checked,login_flow_id:$('#login-flow-id').value||null,acknowledged:$('#ack').checked};const r=await api('/api/scans',{method:'POST',body:JSON.stringify(body)});$('#scan-dialog').close();e.target.reset();toast(t('toast_scan_queued',{id:r.scan_id}));showView('scans');await refresh()}catch(err){$('#form-error').textContent=err.message}};
+$('#scan-form').onsubmit=async e=>{e.preventDefault();$('#form-error').textContent='';try{let policy=null;const rawPolicy=$('#policy-json').value.trim();if(rawPolicy)policy=JSON.parse(rawPolicy);const body={target:$('#target').value,profile:$('#profile').value,custom_headers:headerObject($('#custom-headers').value),secondary_headers:headerObject($('#secondary-headers').value),openapi_url:$('#openapi-url').value,browser_crawl:$('#browser-crawl').checked,browser_verify:$('#browser-verify').checked,graphql:$('#graphql').checked,graphql_url:$('#graphql-url').value,webhook_url:$('#webhook-url').value,submit_forms:$('#submit-forms').checked,blind_inject:$('#blind-inject').checked,api_probe:$('#api-probe').checked,oast_url:$('#oast-url').value,oast_listen:$('#oast-listen').value,policy,allow_private:$('#allow-private').checked,login_flow_id:$('#login-flow-id').value||null,login_password:$('#login-password')?.value||'',acknowledged:$('#ack').checked};const r=await api('/api/scans',{method:'POST',body:JSON.stringify(body)});$('#scan-dialog').close();e.target.reset();syncLoginPasswordField();toast(t('toast_scan_queued',{id:r.scan_id}));showView('scans');await refresh()}catch(err){$('#form-error').textContent=err.message}};
 $('#add-step').onclick=()=>{state.steps.push({action:'fill',selector:'',value:''});renderSteps()};
 $('#login-steps').onclick=e=>{if(e.target.dataset.del!=null){state.steps.splice(+e.target.dataset.del,1);renderSteps()}};
 $('#login-steps').onchange=e=>{const i=+e.target.dataset.i,k=e.target.dataset.k;if(Number.isNaN(i)||!k)return;if(k==='action')state.steps[i].action=e.target.value;else if(['goto','wait_for_url'].includes(state.steps[i].action)){state.steps[i].url=state.steps[i].action==='goto'?e.target.value:'';state.steps[i].contains=state.steps[i].action==='wait_for_url'?e.target.value:'';state.steps[i].selector=''}else if(k==='selector')state.steps[i].selector=e.target.value;else if(k==='value'){state.steps[i].value=e.target.value;state.steps[i].secret=e.target.value.includes('${')}renderSteps()};
 $('#login-load-template').onclick=async()=>{const r=await api('/api/login-flows');const tpl=r.template;$('#login-start').value=tpl.start_url;$('#login-success').value=tpl.success_url_contains||'';state.steps=(tpl.steps||[]).map(s=>({...s}));renderSteps()};
 $('#login-export').onclick=()=>{navigator.clipboard?.writeText(JSON.stringify(currentFlow(),null,2));toast(t('toast_flow_copied'))};
 $('#login-save').onclick=async()=>{try{await api('/api/login-flows',{method:'POST',body:JSON.stringify({name:$('#login-name').value,flow:currentFlow()})});toast(t('toast_flow_saved'));await refresh()}catch(e){toast(e.message)}};
-$('#login-record').onclick=async()=>{try{const r=await api('/api/login-record',{method:'POST',body:JSON.stringify({name:$('#login-name').value,start_url:$('#login-start').value,timeout_seconds:300})});$('#login-record-status').textContent=t('record_status',{id:r.session_id});if(state.recordPoll)clearInterval(state.recordPoll);state.recordPoll=setInterval(async()=>{try{const s=await api(`/api/login-record/${r.session_id}`);if(s.status==='completed'){clearInterval(state.recordPoll);state.recordPoll=null;$('#login-record-status').textContent=t('record_saved');if(s.flow){$('#login-start').value=s.flow.start_url||'';$('#login-success').value=s.flow.success_url_contains||'';state.steps=(s.flow.steps||[]).map(step=>({...step}));renderSteps()}toast(t('toast_record_done'));await refresh()}else if(s.status==='failed'){clearInterval(state.recordPoll);state.recordPoll=null;$('#login-record-status').textContent=s.error||'failed';toast(s.error||'failed')}}catch(err){clearInterval(state.recordPoll);state.recordPoll=null;toast(err.message)}},2000)}catch(e){toast(e.message)}};
-$('#saved-flows').onclick=async e=>{if(e.target.dataset.editFlow){const f=state.flows.find(x=>x.id===e.target.dataset.editFlow);if(!f)return;$('#login-name').value=f.name;$('#login-start').value=f.flow.start_url||'';$('#login-success').value=f.flow.success_url_contains||'';state.steps=(f.flow.steps||[]).map(s=>({...s}));renderSteps()}if(e.target.dataset.delFlow){await api(`/api/login-flows/${e.target.dataset.delFlow}`,{method:'DELETE'});await refresh()}};
+$('#login-record').onclick=async()=>{try{const r=await api('/api/login-record',{method:'POST',body:JSON.stringify({name:$('#login-name').value,start_url:$('#login-start').value,timeout_seconds:300})});$('#login-record-status').textContent=t('record_status',{id:r.session_id});if(state.recordPoll)clearInterval(state.recordPoll);state.recordPoll=setInterval(async()=>{try{const s=await api(`/api/login-record/${r.session_id}`);if(s.status==='completed'){clearInterval(state.recordPoll);state.recordPoll=null;$('#login-record-status').textContent=t('record_saved');if(s.flow){$('#login-start').value=s.flow.start_url||'';$('#login-success').value=s.flow.success_url_contains||'';state.steps=(s.flow.steps||[]).map(step=>({...step}));renderSteps()}toast(t('toast_record_done'))}else if(s.status==='failed'){clearInterval(state.recordPoll);state.recordPoll=null;$('#login-record-status').textContent=s.error||'failed';toast(s.error||'failed')}}catch(err){clearInterval(state.recordPoll);state.recordPoll=null;toast(err.message)}},2000)}catch(e){toast(e.message)}};
+$('#saved-flows').onclick=async e=>{if(e.target.dataset.editFlow){const f=state.flows.find(x=>x.id===e.target.dataset.editFlow);if(!f)return;$('#login-name').value=f.name;$('#login-start').value=f.flow.start_url||'';$('#login-success').value=f.flow.success_url_contains||'';state.steps=(f.flow.steps||[]).map(s=>({...s}));renderSteps()}if(e.target.dataset.delFlow){const id=e.target.dataset.delFlow;const f=state.flows.find(x=>x.id===id);if(!confirm(t('confirm_delete_flow',{name:f?flowLabel(f):id})))return;await api(`/api/login-flows/${id}`,{method:'DELETE'});toast(t('toast_flow_deleted'));await refresh()}};
 $('#campaign-create').onclick=async()=>{try{const r=await api('/api/campaigns',{method:'POST',body:JSON.stringify({name:$('#campaign-name').value,targets:$('#campaign-targets').value,profile:$('#campaign-profile').value,concurrency:+$('#campaign-concurrency').value,graphql:$('#campaign-graphql').checked,browser_crawl:$('#campaign-browser').checked,blind_inject:$('#campaign-blind').checked,allow_private:$('#campaign-private').checked,acknowledged:$('#campaign-ack').checked})});toast(t('toast_campaign_created',{id:r.id}));await refresh()}catch(e){toast(e.message)}};
 $('#campaign-list').onclick=async e=>{if(e.target.dataset.runCampaign){await api(`/api/campaigns/${e.target.dataset.runCampaign}/run`,{method:'POST'});toast(t('toast_campaign_started'));await refresh()}};
 $('#user-create').onclick=async()=>{try{const r=await api('/api/users',{method:'POST',body:JSON.stringify({name:$('#user-name').value,role:$('#user-role').value,tenant_id:$('#user-tenant').value||'default'})});$('#user-token').hidden=false;$('#user-token').textContent=t('token_save',{token:r.token});toast(t('toast_user_created'));await refresh()}catch(e){toast(e.message)}};

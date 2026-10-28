@@ -59,21 +59,60 @@ class LoginResult:
     errors: list[str] = field(default_factory=list)
 
 
-def _expand_value(raw: str | None) -> str:
+def _expand_value(raw: str | None, *, secret_overrides: dict[str, str] | None = None) -> str:
     if raw is None:
         return ""
+    overrides = secret_overrides or {}
 
     def replace(match: re.Match[str]) -> str:
         name = match.group(1)
+        if name in overrides:
+            return overrides[name]
         value = os.environ.get(name)
         if value is None:
-            raise ValueError(f"login flow references unset environment variable: {name}")
+            raise ValueError(
+                f"login flow references unset environment variable: {name} "
+                "(provide it via the scan password field or export it before serve)"
+            )
         return value
 
     return ENV_REF.sub(replace, raw)
 
 
-def parse_login_flow_document(document: dict[str, Any], *, expand_secrets: bool = True) -> LoginFlow:
+def normalize_login_secrets(
+    raw: object | None,
+    *,
+    login_password: str | None = None,
+) -> dict[str, str]:
+    """Ephemeral secret map for ${ENV} expansion. Never persist the return value."""
+    secrets: dict[str, str] = {}
+    if isinstance(raw, dict):
+        if len(raw) > 20:
+            raise ValueError("login_secrets allows at most 20 entries")
+        for key, value in raw.items():
+            name = str(key).strip()
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                raise ValueError(f"invalid login secret name: {name}")
+            text = str(value)
+            if len(text) > 4096:
+                raise ValueError(f"login secret {name} is too long")
+            secrets[name] = text
+    elif raw not in (None, ""):
+        raise ValueError("login_secrets must be an object")
+    password = (login_password or "").strip()
+    if password:
+        if len(password) > 4096:
+            raise ValueError("login_password is too long")
+        secrets.setdefault("APOCALYPSE_PASSWORD", password)
+    return secrets
+
+
+def parse_login_flow_document(
+    document: dict[str, Any],
+    *,
+    expand_secrets: bool = True,
+    secret_overrides: dict[str, str] | None = None,
+) -> LoginFlow:
     if not isinstance(document, dict):
         raise ValueError("login flow must be a JSON object")
     start_url = str(document.get("start_url") or "").strip()
@@ -98,7 +137,11 @@ def parse_login_flow_document(document: dict[str, Any], *, expand_secrets: bool 
         if not 100 <= timeout_ms <= 60_000:
             raise ValueError("login step timeout_ms must be between 100 and 60000")
         raw_value = str(item["value"]) if "value" in item and item["value"] is not None else None
-        value = _expand_value(raw_value) if expand_secrets else (raw_value or "")
+        value = (
+            _expand_value(raw_value, secret_overrides=secret_overrides)
+            if expand_secrets
+            else (raw_value or "")
+        )
         steps.append(LoginStep(
             action=action,
             url=str(item["url"]).strip() if item.get("url") else None,
@@ -117,11 +160,11 @@ def parse_login_flow_document(document: dict[str, Any], *, expand_secrets: bool 
     )
 
 
-def load_login_flow(path: Path) -> LoginFlow:
+def load_login_flow(path: Path, *, secret_overrides: dict[str, str] | None = None) -> LoginFlow:
     document = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise ValueError("login flow must be a JSON object")
-    return parse_login_flow_document(document)
+    return parse_login_flow_document(document, secret_overrides=secret_overrides)
 
 
 def _cookie_header_from_context_cookies(cookies: list[dict[str, Any]], target: str) -> str:
@@ -169,7 +212,15 @@ async def replay_login_flow(flow: LoginFlow, *, target: str, navigation_timeout_
                     elif step.action == "fill":
                         if not step.selector:
                             raise ValueError("fill requires selector")
-                        await page.fill(step.selector, step.value or "", timeout=step.timeout_ms)
+                        locator = page.locator(step.selector).first
+                        input_type = (
+                            await locator.get_attribute("type", timeout=step.timeout_ms) or ""
+                        ).lower()
+                        # Legacy recordings sometimes stored checkbox toggles as fill.
+                        if input_type in {"checkbox", "radio"}:
+                            await locator.click(timeout=step.timeout_ms)
+                        else:
+                            await locator.fill(step.value or "", timeout=step.timeout_ms)
                     elif step.action == "click":
                         if not step.selector:
                             raise ValueError("click requires selector")
@@ -263,7 +314,13 @@ RECORDER_INIT_SCRIPT = """
   document.addEventListener('change', (event) => {
     const el = event.target;
     if (!el || !['INPUT','TEXTAREA','SELECT'].includes(el.nodeName)) return;
-    const secret = (el.type || '').toLowerCase() === 'password' || /pass|secret|token/i.test(el.name || el.id || '');
+    const type = (el.type || '').toLowerCase();
+    // Checkboxes/radios are toggles — never record as fill (Playwright cannot fill them).
+    if (type === 'checkbox' || type === 'radio') {
+      emit({ action: 'click', selector: cssPath(el), url: location.href });
+      return;
+    }
+    const secret = type === 'password' || /pass|secret|token/i.test(el.name || el.id || '');
     emit({
       action: 'fill',
       selector: cssPath(el),
@@ -299,12 +356,18 @@ def _redact_recorded_steps(raw_steps: list[dict[str, Any]], start_url: str) -> d
             steps.append({"action": "goto", "url": url})
             last_url = url
         if action == "fill":
-            steps.append({
-                "action": "fill",
-                "selector": item.get("selector"),
-                "value": item.get("value") or "",
-                "secret": bool(item.get("secret")),
-            })
+            selector = str(item.get("selector") or "")
+            # Defensive: checkbox/radio selectors must replay as click.
+            if selector and ("type=\"checkbox\"" in selector or "type=\"radio\"" in selector
+                             or selector.endswith("[type=checkbox]") or selector.endswith("[type=radio]")):
+                steps.append({"action": "click", "selector": selector})
+            else:
+                steps.append({
+                    "action": "fill",
+                    "selector": item.get("selector"),
+                    "value": item.get("value") or "",
+                    "secret": bool(item.get("secret")),
+                })
         elif action == "click":
             steps.append({"action": "click", "selector": item.get("selector")})
     if last_url != start_url:

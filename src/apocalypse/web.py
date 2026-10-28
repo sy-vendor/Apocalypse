@@ -12,7 +12,12 @@ from urllib.parse import parse_qs, urlsplit
 
 from .campaign import CampaignSpec, create_campaign, run_campaign
 from .engine import PROFILES, ScanEngine, validate_custom_headers
-from .login import example_login_flow, parse_login_flow_document, record_login_interactively
+from .login import (
+    example_login_flow,
+    normalize_login_secrets,
+    parse_login_flow_document,
+    record_login_interactively,
+)
 from .models import ScanOptions, now_iso
 from .reporting import lang_from_request, render_html
 from .scope import ScopeError
@@ -251,6 +256,7 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
             graphql_url = _optional_str(payload.get("graphql_url"))
             webhook_url = _optional_str(payload.get("webhook_url"))
             login_flow_id = _optional_str(payload.get("login_flow_id"))
+            login_password = _optional_str(payload.get("login_password"))
             api_probe = payload.get("api_probe", True) is not False
             oast_url = _optional_str(payload.get("oast_url"))
             oast_listen = _optional_str(payload.get("oast_listen"))
@@ -271,6 +277,13 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
                 return self._json({"error": "custom_headers must be an object"}, 400)
             if raw_secondary and not isinstance(raw_secondary, dict):
                 return self._json({"error": "secondary_headers must be an object"}, 400)
+            try:
+                login_secrets = normalize_login_secrets(
+                    payload.get("login_secrets"),
+                    login_password=login_password,
+                )
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
             if policy_doc is not None:
                 parse_policy_document(policy_doc if isinstance(policy_doc, dict) else {})
             options = ScanOptions(
@@ -283,6 +296,7 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
                 webhook_url=validate_webhook_url(webhook_url),
                 blind_inject=blind_inject,
                 login_flow_id=login_flow_id,
+                login_secrets=login_secrets,
                 api_probe=api_probe,
                 oast_base_url=validate_oast_base(oast_url),
                 oast_listen=oast_listen,
@@ -312,7 +326,8 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
             payload = self._read_json()
             start_url = str(payload.get("start_url", "")).strip()
             timeout_seconds = int(payload.get("timeout_seconds") or 300)
-            name = str(payload.get("name", "")).strip() or "recorded-login"
+            # Recording only drafts into the editor; persist via POST /api/login-flows.
+            name = (str(payload.get("name", "")).strip() or "recorded-login")[:80]
             if urlsplit(start_url).scheme not in {"http", "https"} or not urlsplit(start_url).hostname:
                 raise ValueError("start_url must be a complete http(s) URL")
             session_id = secrets.token_hex(6)
@@ -331,17 +346,7 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
                     document = asyncio.run(record_login_interactively(
                         start_url, timeout_seconds=timeout_seconds, headed=True,
                     ))
-                    item = {
-                        "id": secrets.token_hex(6),
-                        "name": name[:80],
-                        "flow": document,
-                        "created_at": now_iso(),
-                        "updated_at": now_iso(),
-                    }
-                    storage.save_login_flow(item)
-                    RECORDING_SESSIONS[session_id].update({
-                        "status": "completed", "flow": document, "login_flow_id": item["id"],
-                    })
+                    RECORDING_SESSIONS[session_id].update({"status": "completed", "flow": document})
                 except Exception as exc:  # noqa: BLE001 — surface recorder failures to UI
                     RECORDING_SESSIONS[session_id].update({"status": "failed", "error": str(exc)})
 
@@ -445,14 +450,13 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
 
         def _save_login_flow(self) -> None:
             payload = self._read_json()
-            name = str(payload.get("name", "")).strip() or "login-flow"
             flow = payload.get("flow")
             if not isinstance(flow, dict):
                 raise ValueError("flow must be an object")
             parse_login_flow_document(flow, expand_secrets=False)
             item = {
                 "id": str(payload.get("id") or secrets.token_hex(6)),
-                "name": name[:80],
+                "name": str(payload.get("name", "")).strip() or "login-flow",
                 "flow": flow,
                 "created_at": now_iso(),
                 "updated_at": now_iso(),
@@ -460,6 +464,9 @@ def make_handler(storage: Storage, engine: ScanEngine) -> type[BaseHTTPRequestHa
             existing = storage.get_login_flow(item["id"])
             if existing:
                 item["created_at"] = existing["created_at"]
+                item["name"] = storage.unique_login_flow_name(item["name"], exclude_id=item["id"])[:80]
+            else:
+                item["name"] = storage.unique_login_flow_name(item["name"])[:80]
             storage.save_login_flow(item)
             return self._json(item, HTTPStatus.CREATED)
 

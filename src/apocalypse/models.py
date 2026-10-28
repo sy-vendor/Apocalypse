@@ -51,6 +51,7 @@ class ScanOptions:
     fail_on: str = "none"
     blind_inject: bool = False
     login_flow_id: str | None = None
+    login_secrets: dict[str, str] = field(default_factory=dict)
     campaign_id: str | None = None
     api_probe: bool = True
     oast_base_url: str | None = None

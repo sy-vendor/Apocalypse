@@ -507,6 +507,19 @@ class LoginFlowTests(unittest.TestCase):
             self.assertEqual(flow.steps[0].value, "s3cret")
             self.assertTrue(flow.steps[0].secret)
 
+    def test_login_password_override_without_environ(self):
+        from apocalypse.login import normalize_login_secrets, parse_login_flow_document
+
+        secrets = normalize_login_secrets(None, login_password="pw-from-ui")
+        self.assertEqual(secrets["APOCALYPSE_PASSWORD"], "pw-from-ui")
+        flow = parse_login_flow_document({
+            "start_url": "https://app.example.com/login",
+            "steps": [
+                {"action": "fill", "selector": "#password", "value": "${APOCALYPSE_PASSWORD}", "secret": True},
+            ],
+        }, secret_overrides=secrets)
+        self.assertEqual(flow.steps[0].value, "pw-from-ui")
+
 
 class PolicyAuthzReportTests(unittest.TestCase):
     def test_policy_filters_rules_paths_and_params(self):
@@ -774,6 +787,14 @@ class LoginRecorderTests(unittest.TestCase):
         secret = next(step for step in document["steps"] if step.get("secret"))
         self.assertEqual(secret["value"], "${APOCALYPSE_PASSWORD}")
 
+    def test_redact_checkbox_fill_becomes_click(self):
+        document = _redact_recorded_steps([
+            {"action": "fill", "selector": "input[type=\"checkbox\"]", "value": "on", "url": "https://app.example.com/login"},
+            {"action": "done", "url": "https://app.example.com/home"},
+        ], "https://app.example.com/login")
+        checkbox = next(step for step in document["steps"] if "checkbox" in str(step.get("selector")))
+        self.assertEqual(checkbox["action"], "click")
+
 
 class SsoTenantTicketTests(unittest.TestCase):
     def test_oidc_tenant_and_ticket_providers(self):
@@ -836,6 +857,15 @@ class CampaignTeamTests(unittest.TestCase):
                 }, "created_at": "t", "updated_at": "t",
             })
             self.assertEqual(storage.get_login_flow("flow1")["name"], "login")
+            self.assertEqual(storage.unique_login_flow_name("login"), "login-2")
+            self.assertEqual(storage.unique_login_flow_name("login", exclude_id="flow1"), "login")
+            storage.save_login_flow({
+                "id": "flow2", "name": storage.unique_login_flow_name("login"), "flow": {
+                    "start_url": flow.start_url, "steps": [{"action": "click", "selector": "button"}],
+                }, "created_at": "t", "updated_at": "t",
+            })
+            self.assertTrue(storage.delete_login_flow("flow2"))
+            self.assertIsNone(storage.get_login_flow("flow2"))
             cfg = validate_ticket_config("github", {"repo": "acme/app", "token_env": "GITHUB_TOKEN"})
             storage.set_ticket_config("github", cfg)
             finding = Finding("r1", "Title", "high", "high", "https://a.example.com/", "d", {"parameter": "id"})

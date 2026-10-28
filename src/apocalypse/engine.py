@@ -291,13 +291,18 @@ class ScanEngine:
             policy = parse_policy_document(options.policy) if options.policy else ScanPolicy()
             secondary_headers = validate_custom_headers(options.secondary_headers)
             login_flow_obj = None
+            login_secrets = dict(options.login_secrets or {})
             if options.login_flow_id and not options.login_flow_path:
                 saved = self.storage.get_login_flow(options.login_flow_id)
                 if not saved:
                     raise ValueError(f"login flow not found: {options.login_flow_id}")
-                login_flow_obj = parse_login_flow_document(saved["flow"])
+                login_flow_obj = parse_login_flow_document(
+                    saved["flow"], secret_overrides=login_secrets,
+                )
             elif options.login_flow_path:
-                login_flow_obj = load_login_flow(Path(options.login_flow_path))
+                login_flow_obj = load_login_flow(
+                    Path(options.login_flow_path), secret_overrides=login_secrets,
+                )
             if login_flow_obj is not None:
                 try:
                     login = await replay_login_flow(

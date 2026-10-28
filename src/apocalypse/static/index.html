@@ -99,7 +99,7 @@
         <div class="panel-head">
           <div>
             <h2 data-i18n="login_record_title">交互式浏览器录制</h2>
-            <p class="panel-kicker" data-i18n-html="login_record_help">启动可视浏览器，完成登录后点击页面栏中的 <b>Done</b>。密码会红化为 <code>${APOCALYPSE_PASSWORD}</code>。</p>
+            <p class="panel-kicker" data-i18n-html="login_record_help">启动可视浏览器，完成登录后点 <b>Done</b>。结果只填入编辑器，需点 <b>保存流程</b> 才入库。密码会红化为 <code>${APOCALYPSE_PASSWORD}</code>（重放已保存流程前请 export）。用 Cookie 扫描则不必保存流程。</p>
           </div>
         </div>
         <div class="fields fields-record">
@@ -323,6 +323,7 @@
         <option value="deep" data-i18n="profile_deep">Deep — 更广爬取，约 250 请求</option>
       </select></label>
       <label><span data-i18n="saved_login">已保存登录流程</span><select id="login-flow-id"><option value="" data-i18n="none">无</option></select></label>
+      <label id="login-password-wrap" hidden><span data-i18n="login_password">登录密码（本次扫描）</span><input id="login-password" type="password" autocomplete="current-password" placeholder="填入后展开 ${APOCALYPSE_PASSWORD}"><small data-i18n="login_password_help">仅本次扫描用于重放录制流程，不会写入数据库。用 Cookie 时可留空。</small></label>
       <label><span data-i18n="custom_headers">认证 / 自定义请求头</span><textarea id="custom-headers" rows="3" placeholder="Authorization: Bearer …&#10;Cookie: session=…"></textarea><small data-i18n="custom_headers_help">每行一条。仅用于本次扫描，不会持久保存。</small></label>
       <label><span data-i18n="openapi_url">OpenAPI / Swagger JSON URL</span><input id="openapi-url" type="url" placeholder="https://app.example.com/openapi.json"></label>
       <label class="check"><input id="browser-crawl" type="checkbox"><span data-i18n="opt_browser">浏览器爬取</span></label>

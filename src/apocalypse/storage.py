@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -334,6 +335,22 @@ class Storage:
         with self.connect() as db:
             cursor = db.execute("DELETE FROM login_flows WHERE id=?", (flow_id,))
             return cursor.rowcount > 0
+
+    def unique_login_flow_name(self, desired: str, *, exclude_id: str | None = None) -> str:
+        """Avoid duplicate display names when recording/saving multiple flows."""
+        base = (desired or "login-flow").strip()[:70] or "login-flow"
+        existing = {
+            item["name"]
+            for item in self.list_login_flows()
+            if exclude_id is None or item["id"] != exclude_id
+        }
+        if base not in existing:
+            return base
+        for index in range(2, 1000):
+            candidate = f"{base}-{index}"
+            if candidate not in existing:
+                return candidate
+        return f"{base}-{secrets.token_hex(3)}"
 
     def create_user(self, item: dict[str, Any]) -> None:
         with self.connect() as db:

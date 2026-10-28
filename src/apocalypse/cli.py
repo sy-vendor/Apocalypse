@@ -11,7 +11,12 @@ from . import __version__
 from .baseline import compare_findings
 from .campaign import CampaignSpec, create_campaign, run_campaign
 from .engine import FAIL_ON_LEVELS, PROFILES, ScanEngine, parse_header_lines, should_fail
-from .login import example_login_flow, load_login_flow, record_login_interactively
+from .login import (
+    example_login_flow,
+    normalize_login_secrets,
+    parse_login_flow_document,
+    record_login_interactively,
+)
 from .models import ScanOptions, now_iso
 from .oast import validate_oast_base
 from .policy import example_policy, load_policy
@@ -57,6 +62,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument(
         "--login-flow", type=Path,
         help="JSON login recording replayed in Chromium before crawling (secrets via ${ENV})",
+    )
+    scan.add_argument(
+        "--login-password",
+        help="ephemeral password for ${APOCALYPSE_PASSWORD} in --login-flow (not stored)",
     )
     scan.add_argument("--graphql", action="store_true", help="probe common same-origin GraphQL paths with introspection")
     scan.add_argument("--graphql-url", help="explicit same-scope GraphQL endpoint for introspection")
@@ -205,8 +214,13 @@ def main() -> None:
 
     if args.command == "scan":
         try:
+            login_secrets = normalize_login_secrets(
+                None, login_password=getattr(args, "login_password", None),
+            )
             if args.login_flow:
-                load_login_flow(args.login_flow)  # validate early; secrets expand at run time
+                # Validate structure now; ${ENV} expands at run with login_secrets / environ.
+                document = json.loads(Path(args.login_flow).read_text(encoding="utf-8"))
+                parse_login_flow_document(document, expand_secrets=False)
             policy_doc = None
             if args.policy:
                 policy_doc = json.loads(Path(args.policy).read_text(encoding="utf-8"))
@@ -217,6 +231,7 @@ def main() -> None:
                 openapi_url=args.openapi_url,
                 browser_crawl=args.browser_crawl or bool(args.login_flow),
                 login_flow_path=str(args.login_flow) if args.login_flow else None,
+                login_secrets=login_secrets,
                 graphql=args.graphql,
                 graphql_url=args.graphql_url,
                 webhook_url=validate_webhook_url(args.webhook),
