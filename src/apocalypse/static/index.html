@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Apocalypse</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">A</span>
+      <div>
+        <strong>Apocalypse</strong>
+        <small data-i18n="brand_sub">安全控制台</small>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-item active" data-view="dashboard"><span class="nav-ico">◫</span><span data-i18n="nav_dashboard">仪表盘</span></button>
+      <button class="nav-item" data-view="scans"><span class="nav-ico">◎</span><span data-i18n="nav_scans">扫描</span></button>
+      <button class="nav-item" data-view="findings"><span class="nav-ico">◇</span><span data-i18n="nav_findings">漏洞</span></button>
+      <button class="nav-item" data-view="login"><span class="nav-ico">⌁</span><span data-i18n="nav_login">登录录制</span></button>
+      <button class="nav-item" data-view="campaigns"><span class="nav-ico">▦</span><span data-i18n="nav_campaigns">批量任务</span></button>
+      <button class="nav-item" data-view="team"><span class="nav-ico">⚑</span><span data-i18n="nav_team">团队 / 工单</span></button>
+    </nav>
+    <div class="scope-note">
+      <b data-i18n="scope_title">仅限授权使用</b>
+      <p data-i18n="scope_body">只扫描你拥有或已获明确授权评估的系统。</p>
+    </div>
+  </aside>
+
+  <main>
+    <header class="page-head">
+      <div>
+        <h1 id="page-title" data-i18n="page_dashboard_title">安全总览</h1>
+        <p id="page-subtitle" data-i18n="page_dashboard_sub">授权 Web 资产的持续可见性</p>
+      </div>
+      <div class="header-actions">
+        <div class="lang-switch-top" role="group" aria-label="Language">
+          <button type="button" id="lang-zh" data-lang="zh" class="active">中文</button>
+          <button type="button" id="lang-en" data-lang="en">EN</button>
+        </div>
+        <button class="primary" id="new-scan" data-i18n="btn_new_scan">＋ 新建扫描</button>
+      </div>
+    </header>
+
+    <div id="auth-banner">
+      <span data-i18n="auth_banner">已启用 API 认证。请粘贴 Bearer Token 后继续。</span>
+      <input id="api-token" type="password" data-i18n-placeholder="ph_api_token" placeholder="API Token">
+    </div>
+
+    <section id="dashboard-view" class="view active">
+      <div class="metrics">
+        <article><span data-i18n="metric_scans">扫描总数</span><strong id="metric-scans">0</strong><small data-i18n="metric_scans_sub">评估任务</small></article>
+        <article><span data-i18n="metric_findings">漏洞</span><strong id="metric-findings">0</strong><small data-i18n="metric_findings_sub">全部严重级别</small></article>
+        <article class="risk"><span data-i18n="metric_high">高风险</span><strong id="metric-high">0</strong><small data-i18n="metric_high_sub">严重 + 高危</small></article>
+        <article><span data-i18n="metric_running">运行中</span><strong id="metric-running">0</strong><small data-i18n="metric_running_sub">进行中的扫描</small></article>
+      </div>
+      <div class="grid">
+        <section class="panel wide">
+          <div class="panel-head"><h2 data-i18n="recent_scans">最近扫描</h2><button class="text-button" data-jump="scans" data-i18n="view_all">查看全部</button></div>
+          <div id="recent-scans"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="risk_dist">风险分布</h2></div>
+          <div id="severity-chart" class="severity-chart"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="scans-view" class="view">
+      <section class="panel">
+        <div class="panel-head"><h2 data-i18n="scan_activity">扫描活动</h2><button class="text-button" id="refresh-scans" data-i18n="refresh">刷新</button></div>
+        <div id="all-scans"></div>
+      </section>
+    </section>
+
+    <section id="findings-view" class="view">
+      <section class="panel findings-panel">
+        <div class="panel-head findings-toolbar">
+          <div class="panel-title-block">
+            <h2 data-i18n="page_findings_title">漏洞</h2>
+            <p class="panel-kicker" data-i18n="page_findings_sub">查看证据与修复建议</p>
+          </div>
+          <label class="filter-control">
+            <span data-i18n="filter_severity">严重级别</span>
+            <select id="severity-filter">
+              <option value="" data-i18n="all_severities">全部严重级别</option>
+              <option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option>
+            </select>
+          </label>
+        </div>
+        <div id="all-findings" class="findings-list"></div>
+      </section>
+    </section>
+
+    <section id="login-view" class="view">
+      <section class="panel record-hero">
+        <div class="panel-head">
+          <div>
+            <h2 data-i18n="login_record_title">交互式浏览器录制</h2>
+            <p class="panel-kicker" data-i18n-html="login_record_help">启动可视浏览器，完成登录后点击页面栏中的 <b>Done</b>。密码会红化为 <code>${APOCALYPSE_PASSWORD}</code>。</p>
+          </div>
+        </div>
+        <div class="fields fields-record">
+          <label class="field field-sm"><span data-i18n="flow_name">流程名称</span><input id="login-name" type="text" value="default-login"></label>
+          <label class="field field-grow"><span data-i18n="start_url">起始 URL</span><input id="login-start" type="url" placeholder="https://app.example.com/login"></label>
+          <div class="field field-action">
+            <span class="field-spacer" aria-hidden="true">&nbsp;</span>
+            <button class="primary" id="login-record" type="button" data-i18n="btn_start_record">开始浏览器录制</button>
+          </div>
+        </div>
+        <p id="login-record-status" class="muted status-line"></p>
+      </section>
+
+      <div class="workspace login-workspace">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 data-i18n="step_editor">步骤编辑器</h2>
+              <p class="panel-kicker" data-i18n-html="step_editor_help">编辑已录制流程或手动编排步骤。密钥使用 <code>${ENV}</code> 占位符。</p>
+            </div>
+            <button class="text-button" id="add-step" data-i18n="btn_add_step">＋ 添加步骤</button>
+          </div>
+          <label class="field"><span data-i18n="success_url">成功 URL 包含</span><input id="login-success" type="text" placeholder="/dashboard"></label>
+          <div id="login-steps" class="steps-board"></div>
+          <div class="toolbar sticky-actions">
+            <button class="secondary" id="login-load-template" type="button" data-i18n="btn_load_template">加载模板</button>
+            <button class="secondary" id="login-export" type="button" data-i18n="btn_export_json">导出 JSON</button>
+            <button class="primary" id="login-save" type="button" data-i18n="btn_save_flow">保存流程</button>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="panel compact">
+            <div class="panel-head"><h2 data-i18n="preview_json">流程 JSON</h2></div>
+            <pre id="login-preview"></pre>
+          </section>
+          <section class="panel compact">
+            <div class="panel-head"><h2 data-i18n="saved_flows_title">已保存流程</h2></div>
+            <div id="saved-flows"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="campaigns-view" class="view">
+      <div class="workspace campaign-workspace">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 data-i18n="campaign_title">批量任务编排</h2>
+              <p class="panel-kicker" data-i18n="campaign_form_help">设定名称、配置档与目标清单，再启动批量评估。</p>
+            </div>
+          </div>
+          <div class="fields fields-3">
+            <label class="field"><span data-i18n="name">名称</span><input id="campaign-name" type="text" value="batch-assessment"></label>
+            <label class="field"><span data-i18n="profile">配置档</span><select id="campaign-profile"><option value="safe">safe</option><option value="balanced">balanced</option><option value="deep">deep</option></select></label>
+            <label class="field field-narrow"><span data-i18n="concurrency">并发</span><input id="campaign-concurrency" type="number" min="1" max="8" value="2"></label>
+          </div>
+          <label class="field"><span data-i18n="targets_lines">目标（每行一个 URL）</span><textarea id="campaign-targets" rows="6" placeholder="https://app1.example.com/&#10;https://app2.example.com/"></textarea></label>
+          <div class="option-grid">
+            <label class="option-chip"><input id="campaign-graphql" type="checkbox"><span data-i18n="opt_graphql">GraphQL introspection</span></label>
+            <label class="option-chip"><input id="campaign-browser" type="checkbox"><span data-i18n="opt_browser">浏览器爬取</span></label>
+            <label class="option-chip"><input id="campaign-blind" type="checkbox"><span data-i18n="opt_blind">盲注（仅 deep）</span></label>
+            <label class="option-chip"><input id="campaign-private" type="checkbox"><span data-i18n="opt_private_targets">允许私有目标</span></label>
+          </div>
+          <label class="check acknowledge"><input id="campaign-ack" type="checkbox"><span data-i18n="campaign_ack">我确认已获全部所列目标的授权</span></label>
+          <div class="toolbar"><button class="primary" id="campaign-create" type="button" data-i18n="btn_create_campaign">创建批量任务</button></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="campaign_list">任务列表</h2></div>
+          <div id="campaign-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="team-view" class="view">
+      <div class="settings-shell">
+        <nav class="settings-rail" role="tablist" aria-label="Settings">
+          <button type="button" class="rail-item active" data-team-tab="users">
+            <span class="rail-ico" aria-hidden="true">◌</span>
+            <span>
+              <strong data-i18n="team_users">团队用户</strong>
+              <small data-i18n="team_users_rail">账号与角色</small>
+            </span>
+          </button>
+          <button type="button" class="rail-item" data-team-tab="sso">
+            <span class="rail-ico" aria-hidden="true">◈</span>
+            <span>
+              <strong data-i18n="tenants_sso">租户与 SSO</strong>
+              <small data-i18n="tenants_sso_rail">隔离与登录</small>
+            </span>
+          </button>
+          <button type="button" class="rail-item" data-team-tab="tickets">
+            <span class="rail-ico" aria-hidden="true">▣</span>
+            <span>
+              <strong data-i18n="ticket_sync">工单同步</strong>
+              <small data-i18n="ticket_sync_rail">缺陷跟踪对接</small>
+            </span>
+          </button>
+        </nav>
+
+        <div class="settings-main">
+          <div class="team-tab active" data-team-panel="users">
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div>
+                  <h2 data-i18n="team_users">团队用户</h2>
+                  <p data-i18n="team_users_help">创建分析员账号并绑定租户。</p>
+                </div>
+              </header>
+              <div class="compose-bar">
+                <label class="field"><span data-i18n="name">名称</span><input id="user-name" type="text" placeholder="alice" autocomplete="off"></label>
+                <label class="field"><span data-i18n="role">角色</span><select id="user-role"><option>admin</option><option selected>analyst</option><option>viewer</option></select></label>
+                <label class="field"><span data-i18n="tenant_id">租户 ID</span><input id="user-tenant" type="text" value="default" autocomplete="off"></label>
+                <div class="compose-action">
+                  <button class="primary" id="user-create" type="button" data-i18n="btn_create_user">创建用户</button>
+                </div>
+              </div>
+              <div id="user-token" class="token-box" hidden></div>
+              <div class="settings-section-label" data-i18n="team_user_list">用户列表</div>
+              <div id="user-list" class="entity-list"></div>
+            </section>
+          </div>
+
+          <div class="team-tab" data-team-panel="sso">
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div>
+                  <h2 data-i18n="tenant_section">租户</h2>
+                  <p data-i18n="tenant_help">隔离不同客户或业务线的评估数据。</p>
+                </div>
+              </header>
+              <div class="compose-bar compose-bar-2">
+                <label class="field field-grow"><span data-i18n="tenant_name">新租户名称</span><input id="tenant-name" type="text" placeholder="Acme Corp" autocomplete="off"></label>
+                <div class="compose-action">
+                  <button class="secondary" id="tenant-create" type="button" data-i18n="btn_create_tenant">创建租户</button>
+                </div>
+              </div>
+              <div id="tenant-list" class="entity-list"></div>
+            </section>
+
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div>
+                  <h2 data-i18n="sso_section">OIDC SSO</h2>
+                  <p data-i18n="sso_help">对接企业身份提供方，密钥只引用环境变量。</p>
+                </div>
+              </header>
+              <div class="setting-rows">
+                <label class="setting-row"><span data-i18n="oidc_issuer">OIDC Issuer</span><input id="sso-issuer" type="url" placeholder="https://login.example.com"></label>
+                <label class="setting-row"><span data-i18n="client_id">Client ID</span><input id="sso-client-id" type="text" autocomplete="off"></label>
+                <label class="setting-row"><span data-i18n="client_secret_env">Client Secret 环境变量</span><input id="sso-secret-env" type="text" value="OIDC_CLIENT_SECRET" autocomplete="off"></label>
+                <label class="setting-row"><span data-i18n="redirect_uri">Redirect URI</span><input id="sso-redirect" type="url" placeholder="http://127.0.0.1:8080/api/sso/callback"></label>
+              </div>
+              <div class="toolbar settings-footer">
+                <button class="primary" id="sso-save" type="button" data-i18n="btn_save_sso">保存 SSO</button>
+                <button class="secondary" id="sso-login" type="button" data-i18n="btn_sso_login">开始 SSO 登录</button>
+              </div>
+              <div id="sso-status" class="muted status-line"></div>
+            </section>
+          </div>
+
+          <div class="team-tab" data-team-panel="tickets">
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div>
+                  <h2 data-i18n="ticket_sync">工单同步</h2>
+                  <p data-i18n="ticket_help">把漏洞推送到 GitHub、Jira 或 ServiceNow。</p>
+                </div>
+              </header>
+
+              <div class="provider-grid" role="radiogroup" aria-label="Ticket provider">
+                <label class="provider-card"><input type="radio" name="ticket-provider-ui" value="github" checked><span class="provider-name">GitHub</span><span class="provider-desc" data-i18n="provider_github_desc">Issues 工单</span></label>
+                <label class="provider-card"><input type="radio" name="ticket-provider-ui" value="jira"><span class="provider-name">Jira</span><span class="provider-desc" data-i18n="provider_jira_desc">Cloud / Server</span></label>
+                <label class="provider-card"><input type="radio" name="ticket-provider-ui" value="servicenow"><span class="provider-name">ServiceNow</span><span class="provider-desc" data-i18n="provider_snow_desc">Incident 表</span></label>
+                <label class="provider-card"><input type="radio" name="ticket-provider-ui" value="webhook"><span class="provider-name">Webhook</span><span class="provider-desc" data-i18n="provider_webhook">通用 Webhook</span></label>
+              </div>
+              <select id="ticket-provider" hidden>
+                <option value="github">GitHub Issues</option>
+                <option value="jira">Jira</option>
+                <option value="servicenow">ServiceNow</option>
+                <option value="webhook">webhook</option>
+              </select>
+
+              <div class="setting-rows" id="ticket-fields">
+                <label class="setting-row" data-providers="github"><span data-i18n="github_repo">GitHub 仓库</span><input id="ticket-repo" type="text" placeholder="owner/repo" autocomplete="off"></label>
+                <label class="setting-row" data-providers="jira servicenow"><span data-i18n="base_url">Base URL</span><input id="ticket-base-url" type="url" placeholder="https://company.atlassian.net"></label>
+                <label class="setting-row" data-providers="jira"><span data-i18n="jira_project">Jira 项目 Key</span><input id="ticket-project" type="text" placeholder="SEC" autocomplete="off"></label>
+                <label class="setting-row" data-providers="servicenow"><span data-i18n="snow_table">ServiceNow 表</span><input id="ticket-table" type="text" value="incident" autocomplete="off"></label>
+                <label class="setting-row" data-providers="webhook"><span data-i18n="webhook_url">Webhook URL</span><input id="ticket-url" type="url" placeholder="https://tickets.example/hooks"></label>
+                <label class="setting-row" data-providers="github jira servicenow webhook"><span data-i18n="token_env">Token 环境变量</span><input id="ticket-token-env" type="text" value="GITHUB_TOKEN" autocomplete="off"></label>
+                <label class="setting-row" data-providers="jira"><span data-i18n="jira_email_env">Jira 邮箱环境变量</span><input id="ticket-email-env" type="text" value="JIRA_EMAIL" autocomplete="off"></label>
+              </div>
+
+              <div class="toolbar settings-footer">
+                <button class="primary" id="ticket-save" type="button" data-i18n="btn_save_ticket">保存配置</button>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div>
+                  <h2 data-i18n="ticket_list">已同步工单</h2>
+                  <p data-i18n="ticket_list_help">从漏洞页推送后会出现在这里。</p>
+                </div>
+              </header>
+              <div id="ticket-list" class="entity-list"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="scan-dialog">
+    <form id="scan-form" method="dialog">
+      <div class="modal-head"><div><h2 data-i18n="modal_scan_title">新建网站扫描</h2><p data-i18n="modal_scan_sub">配置一次限定范围、非破坏性的评估。</p></div><button type="button" class="icon-button" id="close-dialog">×</button></div>
+      <label><span data-i18n="target_url">目标 URL</span><input id="target" type="url" required placeholder="https://app.example.com/"></label>
+      <label><span data-i18n="scan_profile">扫描配置档</span><select id="profile">
+        <option value="safe" data-i18n="profile_safe">Safe — 被动检查，约 30 请求</option>
+        <option value="balanced" data-i18n="profile_balanced">Balanced — 无害探针，约 100 请求</option>
+        <option value="deep" data-i18n="profile_deep">Deep — 更广爬取，约 250 请求</option>
+      </select></label>
+      <label><span data-i18n="saved_login">已保存登录流程</span><select id="login-flow-id"><option value="" data-i18n="none">无</option></select></label>
+      <label><span data-i18n="custom_headers">认证 / 自定义请求头</span><textarea id="custom-headers" rows="3" placeholder="Authorization: Bearer …&#10;Cookie: session=…"></textarea><small data-i18n="custom_headers_help">每行一条。仅用于本次扫描，不会持久保存。</small></label>
+      <label><span data-i18n="openapi_url">OpenAPI / Swagger JSON URL</span><input id="openapi-url" type="url" placeholder="https://app.example.com/openapi.json"></label>
+      <label class="check"><input id="browser-crawl" type="checkbox"><span data-i18n="opt_browser">浏览器爬取</span></label>
+      <label class="check"><input id="graphql" type="checkbox"><span data-i18n="opt_graphql">GraphQL introspection</span></label>
+      <label><span data-i18n="graphql_url">GraphQL URL</span><input id="graphql-url" type="url" placeholder="https://app.example.com/graphql"></label>
+      <label><span data-i18n="webhook_url">Webhook URL</span><input id="webhook-url" type="url" placeholder="https://hooks.example.com/apocalypse"></label>
+      <label class="check"><input id="submit-forms" type="checkbox"><span data-i18n="opt_submit_forms">POST 表单 / JSON 体探针（仅 Deep）</span></label>
+      <label class="check"><input id="blind-inject" type="checkbox"><span data-i18n="opt_blind_scan">盲注布尔/时间型启发式（仅 Deep）</span></label>
+      <label class="check"><input id="api-probe" type="checkbox" checked><span data-i18n="opt_api_probe">API 探测（OpenAPI / GraphQL 参数）</span></label>
+      <label class="check"><input id="browser-verify" type="checkbox"><span data-i18n="opt_browser_verify">浏览器 XSS 验证（弹窗）</span></label>
+      <label><span data-i18n="oast_url">OAST Collaborator Base URL</span><input id="oast-url" type="url" placeholder="https://oast.example"></label>
+      <label><span data-i18n="oast_listen">OAST 监听（实验室）</span><input id="oast-listen" placeholder="127.0.0.1:0"></label>
+      <label><span data-i18n="secondary_headers">第二会话请求头（IDOR）</span><textarea id="secondary-headers" rows="2" placeholder="Cookie: session=other-user"></textarea></label>
+      <label><span data-i18n="policy_json">策略 JSON（可选）</span><textarea id="policy-json" rows="3" placeholder='{"disabled_rules":[],"exclude_paths":["/health"],"exclude_params":["utm_source"]}'></textarea></label>
+      <label class="check"><input id="allow-private" type="checkbox"><span data-i18n="opt_private">允许私有/本地目标</span></label>
+      <label class="check acknowledge"><input id="ack" type="checkbox" required><span data-i18n="scan_ack">我确认拥有该目标或已获明确授权进行测试。</span></label>
+      <div id="form-error" class="form-error"></div>
+      <div class="modal-actions"><button type="button" class="secondary" id="cancel-dialog" data-i18n="cancel">取消</button><button type="submit" class="primary" data-i18n="btn_start_scan">开始扫描</button></div>
+    </form>
+  </dialog>
+  <div id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

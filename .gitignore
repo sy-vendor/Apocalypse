@@ -3,11 +3,5 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
-.mypy_cache/
-dist/
-build/
-config.toml
-auth.local.toml
-*.local.toml
-runs/
-.DS_Store
+data/
+reports/

@@ -1,5 +1,0 @@
-# 逐行填写已在 valaSRC 实时页面确认的完整 Web URL。
-# 不要填写通配符、App、小程序或未经确认的合作方资产。
-https://www.51vala.com/
-https://vala.life/
-https://www.xiaolanben.com/
