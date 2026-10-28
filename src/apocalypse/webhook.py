@@ -6,15 +6,26 @@ from urllib.parse import urlsplit
 import httpx
 
 from .models import ScanResult
+from .scope import ScopeError, assert_host_allowed, pin_url_for_request
 
 
-def validate_webhook_url(url: str | None) -> str | None:
+def validate_webhook_url(url: str | None, *, allow_private: bool = False) -> str | None:
     if not url:
         return None
     value = url.strip()
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("webhook URL must be an absolute http(s) URL")
+    if parsed.username or parsed.password:
+        raise ValueError("credentials in webhook URL are not permitted")
+    try:
+        assert_host_allowed(
+            parsed.hostname,
+            allow_private=allow_private,
+            port=parsed.port or (443 if parsed.scheme == "https" else 80),
+        )
+    except ScopeError as exc:
+        raise ValueError(str(exc)) from exc
     return value
 
 
@@ -58,6 +69,14 @@ def scan_webhook_payload(result: ScanResult) -> dict[str, Any]:
 
 
 async def deliver_webhook(url: str, payload: dict[str, Any], *, timeout: float = 10.0) -> None:
+    # Re-resolve and pin immediately before connect to shrink DNS-rebinding windows.
+    pinned, host_header, _ = pin_url_for_request(url, allow_private=False)
+    headers = {
+        "User-Agent": "Apocalypse-Webhook/0.6",
+        "Host": host_header,
+        "Content-Type": "application/json",
+    }
+    extensions = {"sni_hostname": urlsplit(url).hostname} if pinned.startswith("https://") else None
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-        response = await client.post(url, json=payload, headers={"User-Agent": "Apocalypse-Webhook/0.6"})
+        response = await client.post(pinned, json=payload, headers=headers, extensions=extensions)
         response.raise_for_status()

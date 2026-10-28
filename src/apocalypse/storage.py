@@ -29,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_findings_scan ON findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
 CREATE TABLE IF NOT EXISTS schedules (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   target TEXT NOT NULL,
   profile TEXT NOT NULL,
   interval_minutes INTEGER NOT NULL,
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 );
 CREATE TABLE IF NOT EXISTS login_flows (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   name TEXT NOT NULL,
   flow_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -85,6 +87,7 @@ CREATE TABLE IF NOT EXISTS ticket_config (
 );
 CREATE TABLE IF NOT EXISTS tickets (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   finding_key TEXT NOT NULL UNIQUE,
   scan_id TEXT NOT NULL,
   rule_id TEXT NOT NULL,
@@ -100,6 +103,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   name TEXT NOT NULL,
   status TEXT NOT NULL,
   profile TEXT NOT NULL,
@@ -124,6 +128,7 @@ USER_COLUMNS = (
     ("tenant_id", "TEXT NOT NULL DEFAULT 'default'"),
     ("sso_subject", "TEXT"),
 )
+TENANT_TABLES = ("schedules", "login_flows", "tickets", "campaigns")
 
 
 class Storage:
@@ -149,6 +154,10 @@ class Storage:
         for name, declaration in USER_COLUMNS:
             if user_cols and name not in user_cols:
                 db.execute(f"ALTER TABLE users ADD COLUMN {name} {declaration}")
+        for table in TENANT_TABLES:
+            columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+            if "tenant_id" not in columns:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'")
         db.execute(
             "INSERT OR IGNORE INTO tenants(id,name,slug,created_at) VALUES('default','Default','default',?)",
             (now_iso(),),
@@ -178,8 +187,9 @@ class Storage:
         with self.connect() as db:
             row = db.execute(
                 """SELECT id FROM scans WHERE target=? AND status='completed' AND id!=?
+                AND tenant_id=(SELECT tenant_id FROM scans WHERE id=?)
                 ORDER BY COALESCE(finished_at, created_at) DESC LIMIT 1""",
-                (target, before_scan_id),
+                (target, before_scan_id, before_scan_id),
             ).fetchone()
         if row is None:
             return None
@@ -213,15 +223,25 @@ class Storage:
             result.append(item)
         return result
 
-    def delete_scan(self, scan_id: str) -> bool:
+    def delete_scan(self, scan_id: str, *, tenant_id: str | None = None) -> bool:
         with self.connect() as db:
+            if tenant_id and not db.execute(
+                "SELECT 1 FROM scans WHERE id=? AND tenant_id=?", (scan_id, tenant_id),
+            ).fetchone():
+                return False
             db.execute("DELETE FROM findings WHERE scan_id=?", (scan_id,))
-            cursor = db.execute("DELETE FROM scans WHERE id=?", (scan_id,))
+            if tenant_id:
+                cursor = db.execute("DELETE FROM scans WHERE id=? AND tenant_id=?", (scan_id, tenant_id))
+            else:
+                cursor = db.execute("DELETE FROM scans WHERE id=?", (scan_id,))
             return cursor.rowcount > 0
 
-    def get_scan(self, scan_id: str) -> dict[str, Any] | None:
+    def get_scan(self, scan_id: str, *, tenant_id: str | None = None) -> dict[str, Any] | None:
         with self.connect() as db:
-            row = db.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
+            if tenant_id:
+                row = db.execute("SELECT * FROM scans WHERE id=? AND tenant_id=?", (scan_id, tenant_id)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
             if row is None:
                 return None
             findings = db.execute("SELECT * FROM findings WHERE scan_id=? ORDER BY id", (scan_id,)).fetchall()
@@ -234,12 +254,15 @@ class Storage:
             item.pop("evidence_json", None)
         return data
 
-    def list_findings(self, limit: int = 500) -> list[dict[str, Any]]:
+    def list_findings(self, limit: int = 500, *, tenant_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute(
-                "SELECT findings.*, scans.target FROM findings JOIN scans ON scans.id=findings.scan_id ORDER BY findings.id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            sql = "SELECT findings.*, scans.target FROM findings JOIN scans ON scans.id=findings.scan_id"
+            if tenant_id:
+                rows = db.execute(
+                    sql + " WHERE scans.tenant_id=? ORDER BY findings.id DESC LIMIT ?", (tenant_id, limit),
+                ).fetchall()
+            else:
+                rows = db.execute(sql + " ORDER BY findings.id DESC LIMIT ?", (limit,)).fetchall()
         result = []
         for row in rows:
             item = dict(row)
@@ -247,13 +270,25 @@ class Storage:
             result.append(item)
         return result
 
-    def dashboard(self) -> dict[str, Any]:
+    def dashboard(self, *, tenant_id: str | None = None) -> dict[str, Any]:
         with self.connect() as db:
-            scans = db.execute("SELECT status, COUNT(*) count FROM scans GROUP BY status").fetchall()
-            severities = db.execute("SELECT severity, COUNT(*) count FROM findings GROUP BY severity").fetchall()
-            total_scans = db.execute("SELECT COUNT(*) FROM scans").fetchone()[0]
-            total_findings = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
-            schedules = db.execute("SELECT COUNT(*) FROM schedules WHERE enabled=1").fetchone()[0]
+            if tenant_id:
+                scans = db.execute("SELECT status, COUNT(*) count FROM scans WHERE tenant_id=? GROUP BY status", (tenant_id,)).fetchall()
+                severities = db.execute(
+                    "SELECT severity, COUNT(*) count FROM findings JOIN scans ON scans.id=findings.scan_id WHERE scans.tenant_id=? GROUP BY severity",
+                    (tenant_id,),
+                ).fetchall()
+                total_scans = db.execute("SELECT COUNT(*) FROM scans WHERE tenant_id=?", (tenant_id,)).fetchone()[0]
+                total_findings = db.execute(
+                    "SELECT COUNT(*) FROM findings JOIN scans ON scans.id=findings.scan_id WHERE scans.tenant_id=?", (tenant_id,),
+                ).fetchone()[0]
+                schedules = db.execute("SELECT COUNT(*) FROM schedules WHERE enabled=1 AND tenant_id=?", (tenant_id,)).fetchone()[0]
+            else:
+                scans = db.execute("SELECT status, COUNT(*) count FROM scans GROUP BY status").fetchall()
+                severities = db.execute("SELECT severity, COUNT(*) count FROM findings GROUP BY severity").fetchall()
+                total_scans = db.execute("SELECT COUNT(*) FROM scans").fetchone()[0]
+                total_findings = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
+                schedules = db.execute("SELECT COUNT(*) FROM schedules WHERE enabled=1").fetchone()[0]
         return {
             "generated_at": now_iso(), "total_scans": total_scans, "total_findings": total_findings,
             "active_schedules": schedules,
@@ -265,11 +300,11 @@ class Storage:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO schedules(
-                    id,target,profile,interval_minutes,enabled,allow_private,openapi_url,browser_crawl,
+                    id,tenant_id,target,profile,interval_minutes,enabled,allow_private,openapi_url,browser_crawl,
                     graphql,graphql_url,webhook_url,created_at,next_run_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    item["id"], item["target"], item["profile"], item["interval_minutes"],
+                    item["id"], item.get("tenant_id", "default"), item["target"], item["profile"], item["interval_minutes"],
                     int(item.get("enabled", True)), int(item.get("allow_private", False)),
                     item.get("openapi_url"), int(item.get("browser_crawl", False)),
                     int(item.get("graphql", False)), item.get("graphql_url"), item.get("webhook_url"),
@@ -277,14 +312,20 @@ class Storage:
                 ),
             )
 
-    def list_schedules(self) -> list[dict[str, Any]]:
+    def list_schedules(self, *, tenant_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute("SELECT * FROM schedules ORDER BY created_at DESC").fetchall()
+            if tenant_id:
+                rows = db.execute("SELECT * FROM schedules WHERE tenant_id=? ORDER BY created_at DESC", (tenant_id,)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM schedules ORDER BY created_at DESC").fetchall()
         return [dict(row) for row in rows]
 
-    def delete_schedule(self, schedule_id: str) -> bool:
+    def delete_schedule(self, schedule_id: str, *, tenant_id: str | None = None) -> bool:
         with self.connect() as db:
-            cursor = db.execute("DELETE FROM schedules WHERE id=?", (schedule_id,))
+            if tenant_id:
+                cursor = db.execute("DELETE FROM schedules WHERE id=? AND tenant_id=?", (schedule_id, tenant_id))
+            else:
+                cursor = db.execute("DELETE FROM schedules WHERE id=?", (schedule_id,))
             return cursor.rowcount > 0
 
     def due_schedules(self, now: str) -> list[dict[str, Any]]:
@@ -305,43 +346,55 @@ class Storage:
     def save_login_flow(self, item: dict[str, Any]) -> None:
         with self.connect() as db:
             db.execute(
-                """INSERT INTO login_flows(id,name,flow_json,created_at,updated_at) VALUES(?,?,?,?,?)
-                ON CONFLICT(id) DO UPDATE SET name=excluded.name, flow_json=excluded.flow_json, updated_at=excluded.updated_at""",
-                (item["id"], item["name"], json.dumps(item["flow"]), item["created_at"], item["updated_at"]),
+                """INSERT INTO login_flows(id,tenant_id,name,flow_json,created_at,updated_at) VALUES(?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name, flow_json=excluded.flow_json,
+                updated_at=excluded.updated_at, tenant_id=excluded.tenant_id""",
+                (item["id"], item.get("tenant_id", "default"), item["name"], json.dumps(item["flow"]), item["created_at"], item["updated_at"]),
             )
 
-    def list_login_flows(self) -> list[dict[str, Any]]:
+    def list_login_flows(self, *, tenant_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute("SELECT * FROM login_flows ORDER BY updated_at DESC").fetchall()
+            if tenant_id:
+                rows = db.execute("SELECT * FROM login_flows WHERE tenant_id=? ORDER BY updated_at DESC", (tenant_id,)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM login_flows ORDER BY updated_at DESC").fetchall()
         return [
             {
-                "id": row["id"], "name": row["name"], "flow": json.loads(row["flow_json"]),
+                "id": row["id"], "tenant_id": row["tenant_id"], "name": row["name"], "flow": json.loads(row["flow_json"]),
                 "created_at": row["created_at"], "updated_at": row["updated_at"],
             }
             for row in rows
         ]
 
-    def get_login_flow(self, flow_id: str) -> dict[str, Any] | None:
+    def get_login_flow(self, flow_id: str, *, tenant_id: str | None = None) -> dict[str, Any] | None:
         with self.connect() as db:
-            row = db.execute("SELECT * FROM login_flows WHERE id=?", (flow_id,)).fetchone()
+            if tenant_id:
+                row = db.execute("SELECT * FROM login_flows WHERE id=? AND tenant_id=?", (flow_id, tenant_id)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM login_flows WHERE id=?", (flow_id,)).fetchone()
         if row is None:
             return None
         return {
-            "id": row["id"], "name": row["name"], "flow": json.loads(row["flow_json"]),
+            "id": row["id"], "tenant_id": row["tenant_id"], "name": row["name"], "flow": json.loads(row["flow_json"]),
             "created_at": row["created_at"], "updated_at": row["updated_at"],
         }
 
-    def delete_login_flow(self, flow_id: str) -> bool:
+    def delete_login_flow(self, flow_id: str, *, tenant_id: str | None = None) -> bool:
         with self.connect() as db:
-            cursor = db.execute("DELETE FROM login_flows WHERE id=?", (flow_id,))
+            if tenant_id:
+                cursor = db.execute("DELETE FROM login_flows WHERE id=? AND tenant_id=?", (flow_id, tenant_id))
+            else:
+                cursor = db.execute("DELETE FROM login_flows WHERE id=?", (flow_id,))
             return cursor.rowcount > 0
 
-    def unique_login_flow_name(self, desired: str, *, exclude_id: str | None = None) -> str:
+    def unique_login_flow_name(
+        self, desired: str, *, exclude_id: str | None = None, tenant_id: str | None = None,
+    ) -> str:
         """Avoid duplicate display names when recording/saving multiple flows."""
         base = (desired or "login-flow").strip()[:70] or "login-flow"
         existing = {
             item["name"]
-            for item in self.list_login_flows()
+            for item in self.list_login_flows(tenant_id=tenant_id)
             if exclude_id is None or item["id"] != exclude_id
         }
         if base not in existing:
@@ -403,19 +456,52 @@ class Storage:
             return None
         return {"config": json.loads(row["config_json"]), "updated_at": row["updated_at"]}
 
+    def purge_expired_sso_states(self, *, max_age_seconds: int = 600) -> int:
+        from datetime import datetime, timedelta, timezone
+
+        threshold = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
+        with self.connect() as db:
+            rows = db.execute("SELECT state, created_at FROM sso_states").fetchall()
+            expired = []
+            for row in rows:
+                try:
+                    created = datetime.fromisoformat(str(row["created_at"]))
+                except ValueError:
+                    expired.append(row["state"])
+                    continue
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                if created < threshold:
+                    expired.append(row["state"])
+            for state in expired:
+                db.execute("DELETE FROM sso_states WHERE state=?", (state,))
+        return len(expired)
+
     def save_sso_state(self, state: str, nonce: str, tenant_id: str) -> None:
+        self.purge_expired_sso_states()
         with self.connect() as db:
             db.execute(
                 "INSERT INTO sso_states(state,nonce,tenant_id,created_at) VALUES(?,?,?,?)",
                 (state, nonce, tenant_id, now_iso()),
             )
 
-    def consume_sso_state(self, state: str) -> dict[str, Any] | None:
+    def consume_sso_state(self, state: str, *, max_age_seconds: int = 600) -> dict[str, Any] | None:
+        from datetime import datetime, timedelta, timezone
+
+        self.purge_expired_sso_states(max_age_seconds=max_age_seconds)
         with self.connect() as db:
             row = db.execute("SELECT * FROM sso_states WHERE state=?", (state,)).fetchone()
             if row is None:
                 return None
             db.execute("DELETE FROM sso_states WHERE state=?", (state,))
+        try:
+            created = datetime.fromisoformat(str(row["created_at"]))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if created < datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds):
+                return None
+        except ValueError:
+            return None
         return dict(row)
 
     def find_user_by_sso_subject(self, subject: str) -> dict[str, Any] | None:
@@ -462,21 +548,24 @@ class Storage:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO tickets(
-                    id,finding_key,scan_id,rule_id,title,severity,provider,external_id,external_url,status,created_at,last_sync_at,meta_json
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    id,tenant_id,finding_key,scan_id,rule_id,title,severity,provider,external_id,external_url,status,created_at,last_sync_at,meta_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(finding_key) DO UPDATE SET
                     status=excluded.status, external_url=excluded.external_url, last_sync_at=excluded.last_sync_at,
                     meta_json=excluded.meta_json""",
                 (
-                    item["id"], item["finding_key"], item["scan_id"], item["rule_id"], item["title"], item["severity"],
+                    item["id"], item.get("tenant_id", "default"), item["finding_key"], item["scan_id"], item["rule_id"], item["title"], item["severity"],
                     item["provider"], item["external_id"], item["external_url"], item["status"],
                     item["created_at"], item["last_sync_at"], json.dumps(item.get("meta") or {}),
                 ),
             )
 
-    def list_tickets(self, limit: int = 200) -> list[dict[str, Any]]:
+    def list_tickets(self, limit: int = 200, *, tenant_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute("SELECT * FROM tickets ORDER BY last_sync_at DESC LIMIT ?", (limit,)).fetchall()
+            if tenant_id:
+                rows = db.execute("SELECT * FROM tickets WHERE tenant_id=? ORDER BY last_sync_at DESC LIMIT ?", (tenant_id, limit)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM tickets ORDER BY last_sync_at DESC LIMIT ?", (limit,)).fetchall()
         result = []
         for row in rows:
             item = dict(row)
@@ -484,9 +573,12 @@ class Storage:
             result.append(item)
         return result
 
-    def get_ticket(self, ticket_id: str) -> dict[str, Any] | None:
+    def get_ticket(self, ticket_id: str, *, tenant_id: str | None = None) -> dict[str, Any] | None:
         with self.connect() as db:
-            row = db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
+            if tenant_id:
+                row = db.execute("SELECT * FROM tickets WHERE id=? AND tenant_id=?", (ticket_id, tenant_id)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
         if row is None:
             return None
         item = dict(row)
@@ -496,23 +588,29 @@ class Storage:
     def create_campaign(self, item: dict[str, Any]) -> None:
         with self.connect() as db:
             db.execute(
-                """INSERT INTO campaigns(id,name,status,profile,concurrency,options_json,targets_json,created_at,finished_at)
-                VALUES(?,?,?,?,?,?,?,?,?)""",
+                """INSERT INTO campaigns(id,tenant_id,name,status,profile,concurrency,options_json,targets_json,created_at,finished_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    item["id"], item["name"], item["status"], item["profile"], item["concurrency"],
+                    item["id"], item.get("tenant_id", "default"), item["name"], item["status"], item["profile"], item["concurrency"],
                     json.dumps(item.get("options") or {}), json.dumps(item.get("targets") or []),
                     item["created_at"], item.get("finished_at"),
                 ),
             )
 
-    def list_campaigns(self) -> list[dict[str, Any]]:
+    def list_campaigns(self, *, tenant_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute("SELECT * FROM campaigns ORDER BY created_at DESC").fetchall()
+            if tenant_id:
+                rows = db.execute("SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC", (tenant_id,)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM campaigns ORDER BY created_at DESC").fetchall()
         return [self._campaign_row(row) for row in rows]
 
-    def get_campaign(self, campaign_id: str) -> dict[str, Any] | None:
+    def get_campaign(self, campaign_id: str, *, tenant_id: str | None = None) -> dict[str, Any] | None:
         with self.connect() as db:
-            row = db.execute("SELECT * FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
+            if tenant_id:
+                row = db.execute("SELECT * FROM campaigns WHERE id=? AND tenant_id=?", (campaign_id, tenant_id)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
         return None if row is None else self._campaign_row(row)
 
     def update_campaign_status(self, campaign_id: str, status: str, *, finished_at: str | None) -> None:
@@ -540,7 +638,7 @@ class Storage:
     @staticmethod
     def _campaign_row(row: sqlite3.Row) -> dict[str, Any]:
         return {
-            "id": row["id"], "name": row["name"], "status": row["status"], "profile": row["profile"],
+            "id": row["id"], "tenant_id": row["tenant_id"], "name": row["name"], "status": row["status"], "profile": row["profile"],
             "concurrency": row["concurrency"], "options": json.loads(row["options_json"] or "{}"),
             "targets": json.loads(row["targets_json"] or "[]"), "created_at": row["created_at"],
             "finished_at": row["finished_at"],

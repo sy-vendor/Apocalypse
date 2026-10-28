@@ -48,8 +48,13 @@ class OastHub:
 
     def _start_listener(self, listen: str) -> None:
         host, _, port_raw = listen.partition(":")
-        host = host or "127.0.0.1"
+        host = (host or "127.0.0.1").strip() or "127.0.0.1"
         port = int(port_raw or "0")
+        # Lab OAST must stay on loopback — binding 0.0.0.0 would expose an unauthenticated callback.
+        if host not in {"127.0.0.1", "::1", "localhost"}:
+            raise ValueError("oast listen address must be loopback (127.0.0.1, ::1, or localhost)")
+        if host == "localhost":
+            host = "127.0.0.1"
         hub = self
 
         class Handler(BaseHTTPRequestHandler):

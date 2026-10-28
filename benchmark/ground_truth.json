@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "version": "2026-10-28.1",
+  "scope": "benchmark/run_lab.py loopback fixture only",
+  "curation": {
+    "method": "manual source and expected-response audit",
+    "reviewed_at": "2026-10-28",
+    "reviewer": "sy",
+    "human_signoff": "sy"
+  },
+  "cases": [
+    {"id":"xss-positive","family":"xss","rule_id":"xss.reflected-unencoded","path":"/xss","expected":"positive","reason":"q is inserted into HTML without encoding","review":{"status":"approved"}},
+    {"id":"xss-negative","family":"xss","rule_id":"xss.reflected-unencoded","path":"/safe/xss","expected":"negative","reason":"q is HTML escaped with quote encoding","review":{"status":"approved"}},
+    {"id":"sqli-positive","family":"sqli","rule_id":"sqli.error-based","path":"/sqli","expected":"positive","reason":"both quote canaries return a SQL syntax fingerprint","review":{"status":"approved"}},
+    {"id":"sqli-negative","family":"sqli","rule_id":"sqli.error-based","path":"/safe/sqli","expected":"negative","reason":"input is rendered as data without a database error","review":{"status":"approved"}},
+    {"id":"cmdi-positive","family":"command-injection","rule_id":"cmdi.error-based","path":"/cmd","expected":"positive","reason":"semicolon and pipe canaries return a shell error fingerprint","review":{"status":"approved"}},
+    {"id":"lfi-positive","family":"path-traversal","rule_id":"lfi.path-traversal","path":"/file","expected":"positive","reason":"traversal canaries return a passwd fingerprint twice","review":{"status":"approved"}},
+    {"id":"ssti-positive","family":"ssti","rule_id":"ssti.template-injection","path":"/template","expected":"positive","reason":"arithmetic template canary evaluates to 49 while control does not","review":{"status":"approved"}},
+    {"id":"redirect-positive","family":"open-redirect","rule_id":"redirect.external","path":"/redirect","expected":"positive","reason":"next is copied to Location without an allowlist","review":{"status":"approved"}},
+    {"id":"ssrf-positive","family":"ssrf","rule_id":"ssrf.oast-callback","path":"/ssrf","expected":"positive","reason":"url is fetched server-side and reaches the loopback OAST listener","review":{"status":"approved"}},
+    {"id":"cors-reflection-positive","family":"cors","rule_id":"cors.origin-reflection","path":"/","expected":"positive","reason":"two arbitrary Origin values are reflected","review":{"status":"approved"}},
+    {"id":"cors-wildcard-positive","family":"cors","rule_id":"cors.wildcard","path":"/cors-wildcard","expected":"positive","reason":"response explicitly sets Access-Control-Allow-Origin wildcard","review":{"status":"approved"}},
+    {"id":"secret-positive","family":"secret-exposure","rule_id":"secret.aws-access-key","path":"/secret","expected":"positive","reason":"body contains a synthetic AWS access-key-shaped value","review":{"status":"approved"}},
+    {"id":"stack-positive","family":"error-disclosure","rule_id":"error.stack-trace","path":"/stack","expected":"positive","reason":"body contains a Python traceback marker","review":{"status":"approved"}},
+    {"id":"listing-positive","family":"directory-listing","rule_id":"directory.listing","path":"/listing","expected":"positive","reason":"title and heading expose Index of /","review":{"status":"approved"}},
+    {"id":"cookie-positive","family":"cookie-hardening","rule_id":"cookie.missing-flags","path":"/cookie","expected":"positive","reason":"session cookie omits HttpOnly and SameSite","review":{"status":"approved"}},
+    {"id":"password-http-positive","family":"transport","rule_id":"form.password-over-http","path":"/login","expected":"positive","reason":"password form submits over plain HTTP","review":{"status":"approved"}},
+    {"id":"idor-positive","family":"authorization","rule_id":"authz.idor-differential","path":"/api/users/42","expected":"positive","reason":"two distinct session cookies receive the identical object","review":{"status":"approved"}},
+    {"id":"idor-public-query-negative","family":"authorization","rule_id":"authz.idor-differential","path":"/sqli","expected":"negative","reason":"a public query endpoint returning the same result across sessions is not an authorization bypass","review":{"status":"approved"}},
+    {"id":"idor-public-safe-query-negative","family":"authorization","rule_id":"authz.idor-differential","path":"/safe/sqli","expected":"negative","reason":"a public encoded query endpoint has no protected object boundary","review":{"status":"approved"}}
+  ]
+}

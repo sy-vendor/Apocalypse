@@ -36,13 +36,14 @@ from apocalypse.policy import parse_policy_document
 from apocalypse.probes import detect_lfi, score_ssti
 from apocalypse.reporting import lang_from_request, render_html, render_sarif
 from apocalypse.schedule import create_schedule
-from apocalypse.scope import ScopeError, ScopePolicy
+from apocalypse.scope import ScopeError, ScopePolicy, pin_url_for_request
 from apocalypse.sso import tenant_slug, validate_oidc_config
 from apocalypse.storage import Storage
 from apocalypse.taxonomy import annotate_finding, taxonomy_for
 from apocalypse.team import create_user_record, role_allows
 from apocalypse.tickets import finding_ticket_key, validate_ticket_config
 from apocalypse.webhook import scan_webhook_payload, validate_webhook_url
+from apocalypse.web import _tenant_scope
 
 
 class ScopeTests(unittest.TestCase):
@@ -246,6 +247,31 @@ class ProbeTests(unittest.TestCase):
         self.assertTrue(cors.verified)
         self.assertIn("POST", {method for method, _ in requests})
 
+    def test_open_redirect_probe_observes_location_without_following_it(self):
+        requested_hosts: list[str] = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requested_hosts.append(request.url.host or "")
+            destination = request.url.params.get("next", "")
+            if destination.startswith("https://apocalypse.invalid/"):
+                return httpx.Response(302, headers={"location": destination}, request=request)
+            return httpx.Response(200, text="ok", headers={"content-type": "text/html"}, request=request)
+
+        async def exercise() -> ScanResult:
+            engine = ScanEngine(None)  # type: ignore[arg-type]
+            result = ScanResult("12345678abcdef00", "http://127.0.0.1/", "balanced")
+            result.crawled_urls = ["http://127.0.0.1/redirect?next=/home"]
+            scope = ScopePolicy(result.target, allow_private=True)
+            async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+                await engine._active_probes(
+                    client, scope, RateLimiter(1_000_000), PROFILES["balanced"], result, [], include_post=False,
+                )
+            return result
+
+        result = asyncio.run(exercise())
+        self.assertIn("redirect.external", {item.rule_id for item in result.findings})
+        self.assertEqual(set(requested_hosts), {"127.0.0.1"})
+
 
 class OpenAPITests(unittest.TestCase):
     def test_openapi_three_discovers_get_with_refs_and_examples(self):
@@ -375,6 +401,7 @@ class BaselineTests(unittest.TestCase):
 
             engine = ScanEngine(storage)
             second = ScanResult("scan-new", "https://example.com/", "safe")
+            storage.create_scan(second)
             second.findings = [
                 Finding("r1", "Old", "high", "high", second.target, "d", {"parameter": "q"}),
                 Finding("r2", "New", "medium", "medium", second.target, "d", {"parameter": "id"}),
@@ -548,6 +575,7 @@ class PolicyAuthzReportTests(unittest.TestCase):
             "https://a.example/users/42",
             "https://a.example/static/app.js",
             "https://a.example/items?id=9",
+            "https://a.example/search?id=9",
         ])
         self.assertEqual(len(selected), 2)
 
@@ -802,8 +830,10 @@ class SsoTenantTicketTests(unittest.TestCase):
             "issuer": "https://login.example.com",
             "client_id": "apocalypse",
             "redirect_uri": "http://127.0.0.1:8080/api/sso/callback",
+            "default_tenant_id": "acme",
         })
         self.assertEqual(cfg["client_secret_env"], "OIDC_CLIENT_SECRET")
+        self.assertEqual(cfg["default_tenant_id"], "acme")
         self.assertEqual(tenant_slug("Acme Corp!"), "acme-corp")
         jira = validate_ticket_config("jira", {
             "base_url": "https://company.atlassian.net", "project_key": "SEC",
@@ -891,9 +921,14 @@ class WebhookScheduleTests(unittest.TestCase):
         self.assertEqual(payload["event"], "scan.completed")
         self.assertNotIn("Cookie", json.dumps(payload))
         self.assertEqual(payload["findings"][0]["severity"], "high")
-        self.assertEqual(validate_webhook_url("https://hooks.example.com/x"), "https://hooks.example.com/x")
+        with patch("apocalypse.webhook.assert_host_allowed", return_value={"1.2.3.4"}):
+            self.assertEqual(validate_webhook_url("https://hooks.example.com/x"), "https://hooks.example.com/x")
         with self.assertRaises(ValueError):
             validate_webhook_url("ftp://hooks.example.com/x")
+        with self.assertRaises(ValueError):
+            validate_webhook_url("http://127.0.0.1/hook")
+        with self.assertRaises(ValueError):
+            validate_webhook_url("http://169.254.169.254/latest/meta-data/")
 
     def test_schedule_persists_and_fail_on_threshold(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -938,6 +973,18 @@ class WebHelpersTests(unittest.TestCase):
         self.assertIsNone(_optional_str("null"))
         self.assertEqual(_optional_str("flow-1"), "flow-1")
 
+    def test_quality_snapshot_exposes_reviewed_baseline(self):
+        from apocalypse.web import quality_snapshot
+
+        snapshot = quality_snapshot()
+        # Tests/coverage come from a CI artifact when present; otherwise mark stale.
+        self.assertIn("quality_meta", snapshot)
+        self.assertTrue(snapshot["quality_meta"]["stale"] or snapshot.get("tests"))
+        if snapshot.get("coverage"):
+            self.assertIn("percent", snapshot["coverage"])
+        self.assertEqual(snapshot["ground_truth"]["cases"], 19)
+        self.assertIn(snapshot["ground_truth"]["human_signoff"], {"pending", "sy"})
+
 
 class ReportI18nTests(unittest.TestCase):
     def test_html_report_zh_and_lang_query(self):
@@ -961,6 +1008,71 @@ class ReportI18nTests(unittest.TestCase):
         self.assertIn("No findings recorded", en)
         self.assertEqual(lang_from_request("/reports/abc.html?lang=zh"), "zh")
         self.assertEqual(lang_from_request("/reports/abc.html", "zh-CN,zh;q=0.9"), "zh")
+
+
+class SecurityHardeningTests(unittest.TestCase):
+    def test_tenant_scope_and_baseline_isolation(self):
+        self.assertIsNone(_tenant_scope({"role": "admin", "tenant_id": "default"}))
+        self.assertEqual(_tenant_scope({"role": "analyst", "tenant_id": "acme"}), "acme")
+        self.assertEqual(_tenant_scope({"role": "admin", "tenant_id": "acme"}), "acme")
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "iso.db")
+            target = "https://shared.example.com/"
+            old_a = ScanResult("scana1", target, "safe")
+            old_a.status = "completed"
+            old_a.finished_at = "2026-01-01T00:00:00+00:00"
+            storage.create_scan(old_a, tenant_id="tenant-a")
+            storage.replace_findings(old_a.scan_id, [
+                Finding("r1", "A", "high", "high", target, "d"),
+            ])
+            storage.update_scan(old_a)
+            old_b = ScanResult("scanb1", target, "safe")
+            old_b.status = "completed"
+            old_b.finished_at = "2026-01-02T00:00:00+00:00"
+            storage.create_scan(old_b, tenant_id="tenant-b")
+            storage.replace_findings(old_b.scan_id, [
+                Finding("r2", "B", "high", "high", target, "d"),
+            ])
+            storage.update_scan(old_b)
+            new_a = ScanResult("scana2", target, "safe")
+            storage.create_scan(new_a, tenant_id="tenant-a")
+            prev = storage.previous_completed_scan(target, before_scan_id=new_a.scan_id)
+            self.assertIsNotNone(prev)
+            assert prev is not None
+            self.assertEqual(prev["id"], "scana1")
+            self.assertEqual(prev.get("tenant_id"), "tenant-a")
+            self.assertEqual(len(storage.list_findings(tenant_id="tenant-a")), 1)
+            self.assertEqual(len(storage.list_findings(tenant_id="tenant-b")), 1)
+            self.assertFalse(storage.delete_scan("scanb1", tenant_id="tenant-a"))
+            self.assertTrue(storage.delete_scan("scanb1", tenant_id="tenant-b"))
+
+    def test_dns_pin_and_oast_loopback(self):
+        pinned, host_header, ips = pin_url_for_request("http://127.0.0.1:8080/x", allow_private=True)
+        self.assertIn("127.0.0.1", pinned)
+        self.assertEqual(host_header, "127.0.0.1:8080")
+        self.assertIn("127.0.0.1", ips)
+        with self.assertRaises(ScopeError):
+            pin_url_for_request("http://127.0.0.1/x", allow_private=False)
+        with self.assertRaises(ValueError):
+            OastHub(listen="0.0.0.0:0")
+        with self.assertRaises(ValueError):
+            OastHub(listen="192.168.1.10:0")
+
+    def test_sso_state_expiry_and_html_escape(self):
+        import html as html_mod
+
+        self.assertEqual(html_mod.escape("<img onerror=alert(1)>"), "&lt;img onerror=alert(1)&gt;")
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "sso.db")
+            storage.save_sso_state("fresh", "nonce", "default")
+            with storage.connect() as db:
+                db.execute(
+                    "UPDATE sso_states SET created_at=? WHERE state=?",
+                    ("2000-01-01T00:00:00+00:00", "fresh"),
+                )
+            self.assertIsNone(storage.consume_sso_state("fresh", max_age_seconds=600))
+            storage.save_sso_state("ok", "nonce2", "default")
+            self.assertEqual(storage.consume_sso_state("ok")["nonce"], "nonce2")
 
 
 if __name__ == "__main__":

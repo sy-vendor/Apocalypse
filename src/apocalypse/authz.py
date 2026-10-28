@@ -10,6 +10,9 @@ from urllib.parse import parse_qsl, urlsplit
 
 ID_PARAM = re.compile(r"(?i)^(?:id|user_id|userid|account_id|order_id|org_id|tenant_id|uid|uuid)$")
 ID_PATH = re.compile(r"(?i)/(?:users?|accounts?|orders?|orgs?|tenants?|profiles?|customers?)/([^/?#]+)")
+OBJECT_COLLECTION_PATH = re.compile(
+    r"(?i)/(?:users?|accounts?|orders?|orgs?|tenants?|profiles?|customers?|items?|objects?|records?)(?:/|$)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +26,12 @@ def looks_object_url(url: str) -> AuthzCandidate | None:
     path_match = ID_PATH.search(parsed.path or "")
     if path_match:
         return AuthzCandidate(url, f"path-object:{path_match.group(1)[:40]}")
+    # A bare `?id=` appears on many public search and diagnostic endpoints.
+    # Require an object-collection path before treating query IDs as BOLA
+    # candidates; this keeps useful `/items?id=9` coverage without probing
+    # unrelated `/search?id=...` routes as authorization boundaries.
+    if not OBJECT_COLLECTION_PATH.search(parsed.path or "/"):
+        return None
     for name, value in parse_qsl(parsed.query, keep_blank_values=True):
         if ID_PARAM.match(name) and value:
             return AuthzCandidate(url, f"query:{name}")

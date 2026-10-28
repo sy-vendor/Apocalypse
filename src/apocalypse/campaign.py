@@ -25,6 +25,7 @@ class CampaignSpec:
     webhook_url: str | None = None
     blind_inject: bool = False
     submit_forms: bool = False
+    tenant_id: str = "default"
 
 
 def validate_targets(targets: list[str]) -> list[str]:
@@ -54,6 +55,7 @@ def create_campaign(storage: Storage, spec: CampaignSpec) -> dict[str, Any]:
     targets = validate_targets(spec.targets)
     item = {
         "id": secrets.token_hex(6),
+        "tenant_id": spec.tenant_id or "default",
         "name": spec.name.strip() or "campaign",
         "status": "queued",
         "profile": spec.profile,
@@ -65,7 +67,7 @@ def create_campaign(storage: Storage, spec: CampaignSpec) -> dict[str, Any]:
             "browser_crawl": spec.browser_crawl,
             "graphql": spec.graphql,
             "openapi_url": spec.openapi_url,
-            "webhook_url": validate_webhook_url(spec.webhook_url),
+            "webhook_url": validate_webhook_url(spec.webhook_url, allow_private=spec.allow_private),
             "blind_inject": spec.blind_inject,
             "submit_forms": spec.submit_forms,
         },
@@ -90,7 +92,9 @@ async def run_campaign(storage: Storage, engine: ScanEngine, campaign_id: str) -
         target = target_row["target"]
         async with semaphore:
             storage.update_campaign_target(campaign_id, target, status="running", scan_id=None)
-            result = engine.queue(target, campaign["profile"])
+            result = engine.queue(
+                target, campaign["profile"], tenant_id=str(campaign.get("tenant_id") or "default"),
+            )
             storage.update_campaign_target(campaign_id, target, status="running", scan_id=result.scan_id)
             options = ScanOptions(
                 openapi_url=options_raw.get("openapi_url"),

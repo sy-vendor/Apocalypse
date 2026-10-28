@@ -11,6 +11,10 @@ dependencies = ["httpx>=0.27,<1"]
 
 [project.optional-dependencies]
 browser = ["playwright>=1.40,<2"]
+dev = [
+  "coverage[toml]>=7.6,<8",
+  "playwright>=1.40,<2",
+]
 
 [project.scripts]
 apocalypse = "apocalypse.cli:main"
@@ -20,4 +24,20 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 apocalypse = ["static/*"]
+
+[tool.coverage.run]
+branch = true
+source = ["apocalypse"]
+omit = ["src/apocalypse/static/*"]
+
+[tool.coverage.report]
+# Honest whole-package baseline (including CLI, web and browser adapters).
+# Raise this ratchet as integration coverage grows.
+fail_under = 45
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+]
 

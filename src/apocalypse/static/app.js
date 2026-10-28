@@ -1,15 +1,16 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const state={dashboard:{},scans:[],findings:[],flows:[],campaigns:[],users:[],tenants:[],tickets:[],ticketConfig:null,sso:null,steps:[],recordPoll:null,lang:'zh'};
+const state={dashboard:{},scans:[],findings:[],flows:[],campaigns:[],users:[],tenants:[],tickets:[],ticketConfig:null,sso:null,quality:null,steps:[],recordPoll:null,qualityPoll:null,lang:'zh'};
 
 const I18N={
 en:{
-brand_sub:'Security Console',nav_dashboard:'Dashboard',nav_scans:'Scans',nav_findings:'Vulnerabilities',nav_login:'Login recorder',nav_campaigns:'Campaigns',nav_team:'Team / tickets',
+brand_sub:'Security Console',nav_dashboard:'Dashboard',nav_scans:'Scans',nav_findings:'Vulnerabilities',nav_login:'Login recorder',nav_campaigns:'Campaigns',nav_quality:'Quality',nav_team:'Team / tickets',
 scope_title:'Authorized use only',scope_body:'Scan only systems you own or have explicit permission to assess.',
 page_dashboard_title:'Security overview',page_dashboard_sub:'Continuous visibility across authorized web assets',
 page_scans_title:'Scan activity',page_scans_sub:'Track assessment coverage and progress',
 page_findings_title:'Vulnerabilities',page_findings_sub:'Review evidence and remediation guidance',
 page_login_title:'Login recorder',page_login_sub:'Click-to-record in the browser or edit steps manually',
 page_campaigns_title:'Campaigns',page_campaigns_sub:'Orchestrate multi-target authorized assessments',
+page_quality_title:'Quality benchmark',page_quality_sub:'Detection accuracy, coverage, and reviewed ground truth',
 page_team_title:'Team, SSO & tickets',page_team_sub:'Tenants, OIDC login, and Jira/ServiceNow sync',
 btn_new_scan:'＋ New scan',auth_banner:'API auth is enabled. Paste a Bearer token below to continue.',ph_api_token:'API token',
 metric_scans:'Total scans',metric_scans_sub:'assessment jobs',metric_findings:'Vulnerabilities',metric_findings_sub:'all severities',
@@ -27,7 +28,8 @@ preview_json:'Flow JSON',saved_flows_title:'Saved flows',
 team_users:'Team users',team_users_help:'Create analyst accounts and bind them to a tenant.',team_user_list:'Directory',
 team_users_rail:'Accounts & roles',tenants_sso_rail:'Isolation & login',ticket_sync_rail:'Issue trackers',
 tenant_section:'Tenants',tenant_help:'Isolate assessment data by customer or business line.',
-sso_section:'OIDC SSO',sso_help:'Connect an enterprise IdP. Secrets stay in environment variables.',
+sso_section:'OIDC SSO',sso_help:'Connect an enterprise IdP. Secrets stay in environment variables. New users join the configured default tenant (not a client-chosen ID).',
+sso_default_tenant:'Default tenant ID',
 ticket_help:'Push findings to GitHub, Jira, or ServiceNow.',ticket_list:'Synced tickets',ticket_list_help:'Tickets created from findings appear here.',
 provider_github_desc:'Issues tracker',provider_jira_desc:'Cloud / Server',provider_snow_desc:'Incident table',
 role:'Role',tenant_id:'Tenant ID',btn_create_user:'Create user',
@@ -61,15 +63,22 @@ record_status:'Recording {id}… complete login in the browser, then click Done'
 sso_configured:'SSO configured · {issuer}',sso_complete:'Complete login in the IdP window, then paste the returned token above',
 token_save:'Save this token now: {token}',err_headers:'Headers must use Name: value format',err_auth:'Authentication required',err_request:'Request failed',
 coverage:'coverage: {c}; baseline new {n} / fixed {f} / recurring {r}'
+,
+quality_kicker:'Repeatable, auditable security quality baseline',quality_heading:'Detection quality & engineering health',quality_loading:'Loading the latest benchmark result…',
+quality_run:'Run local benchmark',quality_running:'Benchmark running…',quality_unavailable:'Benchmark runner unavailable in this installation',quality_complete:'Latest benchmark completed with {requests} requests',
+quality_already_running:'Benchmark already running',quality_run_failed:'Benchmark failed',quality_run_ok:'Benchmark finished · P {p} / R {r} / F1 {f1}',
+quality_precision_sub:'correct share of reported findings',quality_recall_sub:'share of ground-truth issues detected',quality_f1_sub:'combined precision / recall',quality_coverage:'Branch coverage',quality_gate:'gate {gate}%',
+quality_families:'Vulnerability family results',quality_oracle:'Ground truth',quality_cases:'Reviewed locations',quality_samples:'Positive / negative',quality_tests:'Unit tests',quality_signoff:'Human sign-off',quality_pending:'Pending',quality_passed:'passed',quality_tests_unavailable:'Unavailable (no CI summary)',quality_run_started:'Quality benchmark started'
 },
 zh:{
-brand_sub:'安全控制台',nav_dashboard:'仪表盘',nav_scans:'扫描',nav_findings:'漏洞',nav_login:'登录录制',nav_campaigns:'批量任务',nav_team:'团队 / 工单',
+brand_sub:'安全控制台',nav_dashboard:'仪表盘',nav_scans:'扫描',nav_findings:'漏洞',nav_login:'登录录制',nav_campaigns:'批量任务',nav_quality:'质量评测',nav_team:'团队 / 工单',
 scope_title:'仅限授权使用',scope_body:'只扫描你拥有或已获明确授权评估的系统。',
 page_dashboard_title:'安全总览',page_dashboard_sub:'授权 Web 资产的持续可见性',
 page_scans_title:'扫描活动',page_scans_sub:'跟踪评估覆盖与进度',
 page_findings_title:'漏洞',page_findings_sub:'查看证据与修复建议',
 page_login_title:'登录录制',page_login_sub:'在浏览器中点选录制，或手动编辑步骤',
 page_campaigns_title:'批量任务',page_campaigns_sub:'编排多目标授权评估',
+page_quality_title:'质量评测',page_quality_sub:'检测准确率、覆盖率与审核真值',
 page_team_title:'团队、SSO 与工单',page_team_sub:'租户、OIDC 登录与 Jira/ServiceNow 同步',
 btn_new_scan:'＋ 新建扫描',auth_banner:'已启用 API 认证。请粘贴 Bearer Token 后继续。',ph_api_token:'API Token',
 metric_scans:'扫描总数',metric_scans_sub:'评估任务',metric_findings:'漏洞',metric_findings_sub:'全部严重级别',
@@ -87,7 +96,8 @@ preview_json:'流程 JSON',saved_flows_title:'已保存流程',
 team_users:'团队用户',team_users_help:'创建分析员账号并绑定租户。',team_user_list:'用户目录',
 team_users_rail:'账号与角色',tenants_sso_rail:'隔离与登录',ticket_sync_rail:'缺陷跟踪对接',
 tenant_section:'租户',tenant_help:'隔离不同客户或业务线的评估数据。',
-sso_section:'OIDC SSO',sso_help:'对接企业身份提供方，密钥只引用环境变量。',
+sso_section:'OIDC SSO',sso_help:'对接企业身份提供方，密钥只引用环境变量。新用户加入服务端配置的默认租户（不可由客户端自选）。',
+sso_default_tenant:'默认租户 ID',
 ticket_help:'把漏洞推送到 GitHub、Jira 或 ServiceNow。',ticket_list:'已同步工单',ticket_list_help:'从漏洞页推送后会出现在这里。',
 provider_github_desc:'Issues 工单',provider_jira_desc:'Cloud / Server',provider_snow_desc:'Incident 表',
 role:'角色',tenant_id:'租户 ID',btn_create_user:'创建用户',
@@ -121,6 +131,12 @@ record_status:'正在录制 {id}… 请在浏览器中完成登录并点击 Done
 sso_configured:'SSO 已配置 · {issuer}',sso_complete:'请在 IdP 窗口完成登录，然后将返回的 Token 粘贴到上方',
 token_save:'请立即保存此 Token：{token}',err_headers:'请求头须使用 Name: value 格式',err_auth:'需要认证',err_request:'请求失败',
 coverage:'覆盖: {c}; 基线 新增 {n} / 已修复 {f} / 复发 {r}'
+,
+quality_kicker:'可重复、可审计的安全质量基线',quality_heading:'检测质量与工程健康度',quality_loading:'正在读取最新评测结果…',
+quality_run:'运行本地靶场',quality_running:'靶场评测运行中…',quality_unavailable:'当前安装不包含靶场运行器',quality_complete:'最新评测完成，共 {requests} 个请求',
+quality_already_running:'靶场已在运行中',quality_run_failed:'靶场评测失败',quality_run_ok:'靶场评测完成 · P {p} / R {r} / F1 {f1}',
+quality_precision_sub:'检出结果中的正确比例',quality_recall_sub:'真值漏洞的检出比例',quality_f1_sub:'Precision / Recall 综合',quality_coverage:'分支覆盖率',quality_gate:'门槛 {gate}%',
+quality_families:'漏洞家族结果',quality_oracle:'Ground truth',quality_cases:'审核位置',quality_samples:'正 / 负样本',quality_tests:'单元测试',quality_signoff:'人工签字',quality_pending:'待签字',quality_passed:'通过',quality_tests_unavailable:'暂无（缺少 CI 摘要）',quality_run_started:'质量评测已启动'
 }
 };
 
@@ -258,12 +274,42 @@ function renderTeam(){
     $('#sso-client-id').value=state.sso.config.client_id||'';
     $('#sso-redirect').value=state.sso.config.redirect_uri||'';
     $('#sso-secret-env').value=state.sso.config.client_secret_env||'OIDC_CLIENT_SECRET';
+    if($('#sso-default-tenant'))$('#sso-default-tenant').value=state.sso.config.default_tenant_id||'default';
     $('#sso-status').textContent=t('sso_configured',{issuer:state.sso.config.issuer});
   }
 }
-function render(){const d=state.dashboard,s=d.findings_by_severity||{};$('#metric-scans').textContent=d.total_scans||0;$('#metric-findings').textContent=d.total_findings||0;$('#metric-high').textContent=(s.critical||0)+(s.high||0);$('#metric-running').textContent=(d.scans_by_status?.running||0)+(d.scans_by_status?.queued||0);$('#recent-scans').innerHTML=scanRows(state.scans.slice(0,7));$('#all-scans').innerHTML=scanRows(state.scans);const filter=$('#severity-filter').value;$('#all-findings').innerHTML=findingRows(state.findings.filter(x=>!filter||x.severity===filter));const max=Math.max(1,...Object.values(s));$('#severity-chart').innerHTML=['critical','high','medium','low','info'].map(k=>`<div class="bar-row"><span>${k}</span><div class="bar"><i style="width:${((s[k]||0)/max)*100}%"></i></div><b>${s[k]||0}</b></div>`).join('');renderSteps();renderFlows();renderCampaigns();renderTeam();enhanceSelects()}
-async function refresh(){try{const [d,s,f,lf,c,u,tk]=await Promise.all([api('/api/dashboard'),api('/api/scans'),api('/api/findings'),api('/api/login-flows'),api('/api/campaigns'),api('/api/users').catch(()=>({users:[],tenants:[],sso:null})),api('/api/tickets').catch(()=>({tickets:[],config:null}))]);state.dashboard=d;state.scans=s.scans;state.findings=f.findings;state.flows=lf.flows||[];state.campaigns=c.campaigns||[];state.users=u.users||[];state.tenants=u.tenants||[];state.sso=u.sso;state.tickets=tk.tickets||[];state.ticketConfig=tk.config;if(u.auth_required)$('#auth-banner').style.display='block';render()}catch(e){toast(e.message)}}
-function showView(name,skipNav){$$('.view').forEach(x=>x.classList.remove('active'));$(`#${name}-view`)?.classList.add('active');if(!skipNav)$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===name));const map={dashboard:['page_dashboard_title','page_dashboard_sub'],scans:['page_scans_title','page_scans_sub'],findings:['page_findings_title','page_findings_sub'],login:['page_login_title','page_login_sub'],campaigns:['page_campaigns_title','page_campaigns_sub'],team:['page_team_title','page_team_sub']};const keys=map[name]||map.dashboard;$('#page-title').textContent=t(keys[0]);$('#page-subtitle').textContent=t(keys[1])}
+function metric(value){return Number.isFinite(+value)?`${(+value*100).toFixed(+value===1?0:1)}%`:'—'}
+function renderQuality(){
+  const q=state.quality||{},b=q.benchmark||{},g=q.ground_truth||{},run=q.run||{},meta=q.quality_meta||{};
+  $('#quality-precision').textContent=metric(b.precision);
+  $('#quality-recall').textContent=metric(b.recall);
+  $('#quality-f1').textContent=metric(b.f1);
+  $('#quality-coverage').textContent=q.coverage?`${q.coverage.percent}%`:'—';
+  $('#quality-coverage-gate').textContent=q.coverage?t('quality_gate',{gate:q.coverage.gate}):'—';
+  $('#quality-version').textContent=g.version?`v${g.version}`:'';
+  $('#quality-cases').textContent=g.cases??'—';
+  $('#quality-samples').textContent=g.positives!=null?`${g.positives} / ${g.negatives}`:'—';
+  $('#quality-tests').textContent=q.tests?`${q.tests.passed}/${q.tests.total} ${t('quality_passed')}`:(meta.stale?t('quality_tests_unavailable'):'—');
+  const signed=g.human_signoff&&g.human_signoff!=='pending';
+  $('#quality-signoff').innerHTML=`<span class="quality-signoff ${signed?'signed':'pending'}">${esc(signed?g.human_signoff:t('quality_pending'))}</span>`;
+  const families=b.families||{};
+  $('#quality-family-list').innerHTML=Object.keys(families).length?Object.entries(families).map(([name,x])=>{const ok=!x.fp&&!x.fn;return `<div class="quality-family"><span class="quality-dot ${ok?'ok':'bad'}"></span><b>${esc(name)}</b><span>TP ${x.tp}</span><span>FP ${x.fp}</span><span>FN ${x.fn}</span><em>${x.cases} case${x.cases===1?'':'s'}</em></div>`}).join(''):`<p class="empty">${esc(t('quality_loading'))}</p>`;
+  const running=run.status==='running';
+  const failed=run.status==='failed';
+  $('#quality-run').disabled=running||!q.runner_available;
+  $('#quality-run').textContent=t(running?'quality_running':'quality_run');
+  $('#quality-run').classList.toggle('is-busy',running);
+  let summary=t('quality_loading');
+  if(!q.runner_available)summary=t('quality_unavailable');
+  else if(running)summary=t('quality_running');
+  else if(failed&&run.error)summary=`${t('quality_run_failed')}: ${String(run.error).slice(0,180)}`;
+  else if(b.requests!=null)summary=t('quality_complete',{requests:b.requests});
+  else if(meta.stale&&meta.note)summary=meta.note;
+  $('#quality-summary').textContent=summary;
+}
+function render(){const d=state.dashboard,s=d.findings_by_severity||{};$('#metric-scans').textContent=d.total_scans||0;$('#metric-findings').textContent=d.total_findings||0;$('#metric-high').textContent=(s.critical||0)+(s.high||0);$('#metric-running').textContent=(d.scans_by_status?.running||0)+(d.scans_by_status?.queued||0);$('#recent-scans').innerHTML=scanRows(state.scans.slice(0,7));$('#all-scans').innerHTML=scanRows(state.scans);const filter=$('#severity-filter').value;$('#all-findings').innerHTML=findingRows(state.findings.filter(x=>!filter||x.severity===filter));const max=Math.max(1,...Object.values(s));$('#severity-chart').innerHTML=['critical','high','medium','low','info'].map(k=>`<div class="bar-row"><span>${k}</span><div class="bar"><i style="width:${((s[k]||0)/max)*100}%"></i></div><b>${s[k]||0}</b></div>`).join('');renderSteps();renderFlows();renderCampaigns();renderTeam();renderQuality();enhanceSelects()}
+async function refresh(){try{const [d,s,f,lf,c,u,tk,q]=await Promise.all([api('/api/dashboard'),api('/api/scans'),api('/api/findings'),api('/api/login-flows'),api('/api/campaigns'),api('/api/users').catch(()=>({users:[],tenants:[],sso:null})),api('/api/tickets').catch(()=>({tickets:[],config:null})),api('/api/quality').catch(()=>null)]);state.dashboard=d;state.scans=s.scans;state.findings=f.findings;state.flows=lf.flows||[];state.campaigns=c.campaigns||[];state.users=u.users||[];state.tenants=u.tenants||[];state.sso=u.sso;state.tickets=tk.tickets||[];state.ticketConfig=tk.config;state.quality=q;if(u.auth_required)$('#auth-banner').style.display='block';render()}catch(e){toast(e.message)}}
+function showView(name,skipNav){$$('.view').forEach(x=>x.classList.remove('active'));$(`#${name}-view`)?.classList.add('active');if(!skipNav)$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===name));const map={dashboard:['page_dashboard_title','page_dashboard_sub'],scans:['page_scans_title','page_scans_sub'],findings:['page_findings_title','page_findings_sub'],login:['page_login_title','page_login_sub'],campaigns:['page_campaigns_title','page_campaigns_sub'],quality:['page_quality_title','page_quality_sub'],team:['page_team_title','page_team_sub']};const keys=map[name]||map.dashboard;$('#page-title').textContent=t(keys[0]);$('#page-subtitle').textContent=t(keys[1])}
 
 function showTeamTab(name){
   $$('.rail-item').forEach(x=>x.classList.toggle('active',x.dataset.teamTab===name));
@@ -285,6 +331,32 @@ function syncLoginPasswordField(){
   if(!on){const pw=$('#login-password');if(pw)pw.value=''}
 }
 $('#new-scan').onclick=()=>{$('#scan-dialog').showModal();renderFlows();syncLoginPasswordField()};$('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>{$('#scan-dialog').close();syncLoginPasswordField()};$('#severity-filter').onchange=render;$('#refresh-scans').onclick=refresh;
+$('#quality-run').onclick=async()=>{
+  try{
+    if(state.quality?.run?.status==='running'){toast(t('quality_already_running'));return}
+    state.quality={...(state.quality||{}),run:{status:'running',error:null},runner_available:true};
+    renderQuality();
+    const r=await api('/api/quality/run',{method:'POST'});
+    if(r.started===false){toast(t('quality_already_running'));state.quality=await api('/api/quality');renderQuality();return}
+    toast(t('quality_run_started'));
+    state.quality=await api('/api/quality');
+    renderQuality();
+    if(state.qualityPoll)clearInterval(state.qualityPoll);
+    state.qualityPoll=setInterval(async()=>{
+      try{
+        state.quality=await api('/api/quality');
+        renderQuality();
+        const st=state.quality?.run?.status;
+        if(st&&st!=='running'){
+          clearInterval(state.qualityPoll);state.qualityPoll=null;
+          const b=state.quality?.benchmark||{};
+          if(st==='failed')toast((state.quality?.run?.error)||t('quality_run_failed'));
+          else toast(t('quality_run_ok',{p:metric(b.precision),r:metric(b.recall),f1:metric(b.f1)}));
+        }
+      }catch(err){clearInterval(state.qualityPoll);state.qualityPoll=null;toast(err.message)}
+    },1000);
+  }catch(e){toast(e.message);try{state.quality=await api('/api/quality');renderQuality()}catch(_){}}
+};
 $('#login-flow-id').addEventListener('change',syncLoginPasswordField);
 $('#recent-scans').onclick=$('#all-scans').onclick=async e=>{if(!e.target.dataset.delScan)return;try{await api(`/api/scans/${e.target.dataset.delScan}`,{method:'DELETE'});toast(t('toast_scan_deleted'));await refresh()}catch(err){toast(err.message)}};
 $('#api-token')?.addEventListener('change',e=>{localStorage.setItem('apocalypse_token',e.target.value);refresh()});
@@ -302,8 +374,8 @@ $('#campaign-create').onclick=async()=>{try{const r=await api('/api/campaigns',{
 $('#campaign-list').onclick=async e=>{if(e.target.dataset.runCampaign){await api(`/api/campaigns/${e.target.dataset.runCampaign}/run`,{method:'POST'});toast(t('toast_campaign_started'));await refresh()}};
 $('#user-create').onclick=async()=>{try{const r=await api('/api/users',{method:'POST',body:JSON.stringify({name:$('#user-name').value,role:$('#user-role').value,tenant_id:$('#user-tenant').value||'default'})});$('#user-token').hidden=false;$('#user-token').textContent=t('token_save',{token:r.token});toast(t('toast_user_created'));await refresh()}catch(e){toast(e.message)}};
 $('#tenant-create').onclick=async()=>{try{await api('/api/tenants',{method:'POST',body:JSON.stringify({name:$('#tenant-name').value})});toast(t('toast_tenant_created'));await refresh()}catch(e){toast(e.message)}};
-$('#sso-save').onclick=async()=>{try{await api('/api/sso/config',{method:'POST',body:JSON.stringify({config:{issuer:$('#sso-issuer').value,client_id:$('#sso-client-id').value,redirect_uri:$('#sso-redirect').value,client_secret_env:$('#sso-secret-env').value}})});toast(t('toast_sso_saved'));await refresh()}catch(e){toast(e.message)}};
-$('#sso-login').onclick=async()=>{try{const r=await api('/api/sso/login',{method:'POST',body:JSON.stringify({tenant_id:$('#user-tenant').value||'default'})});window.open(r.authorize_url,'_blank','noopener');$('#sso-status').textContent=t('sso_complete')}catch(e){toast(e.message)}};
+$('#sso-save').onclick=async()=>{try{await api('/api/sso/config',{method:'POST',body:JSON.stringify({config:{issuer:$('#sso-issuer').value,client_id:$('#sso-client-id').value,redirect_uri:$('#sso-redirect').value,client_secret_env:$('#sso-secret-env').value,default_tenant_id:($('#sso-default-tenant')?.value||'default')}})});toast(t('toast_sso_saved'));await refresh()}catch(e){toast(e.message)}};
+$('#sso-login').onclick=async()=>{try{const r=await api('/api/sso/login',{method:'POST',body:JSON.stringify({})});window.open(r.authorize_url,'_blank','noopener');$('#sso-status').textContent=t('sso_complete')}catch(e){toast(e.message)}};
 $('#ticket-save').onclick=async()=>{try{const provider=$('#ticket-provider').value;const config={token_env:$('#ticket-token-env').value};if(provider==='github')config.repo=$('#ticket-repo').value;else if(provider==='jira'){config.base_url=$('#ticket-base-url').value;config.project_key=$('#ticket-project').value;config.email_env=$('#ticket-email-env').value;config.issue_type='Bug'}else if(provider==='servicenow'){config.base_url=$('#ticket-base-url').value;config.table=$('#ticket-table').value}else config.url=$('#ticket-url').value;await api('/api/tickets/config',{method:'POST',body:JSON.stringify({provider,config})});toast(t('toast_ticket_saved'));await refresh()}catch(e){toast(e.message)}};
 $('#all-findings').onclick=async e=>{const scanId=e.target.dataset.ticketScan,findingId=e.target.dataset.ticketFinding;if(!scanId)return;try{await api('/api/tickets',{method:'POST',body:JSON.stringify({scan_id:scanId,finding_id:Number(findingId)})});toast(t('toast_ticket_created'));showView('team');showTeamTab('tickets');await refresh()}catch(err){toast(err.message)}};
 $('#ticket-list').onclick=async e=>{if(e.target.dataset.syncTicket){await api(`/api/tickets/${e.target.dataset.syncTicket}/sync`,{method:'POST'});toast(t('toast_ticket_synced'));await refresh()}};

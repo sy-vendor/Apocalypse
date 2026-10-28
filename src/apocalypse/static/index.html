@@ -21,6 +21,7 @@
       <button class="nav-item" data-view="findings"><span class="nav-ico">◇</span><span data-i18n="nav_findings">漏洞</span></button>
       <button class="nav-item" data-view="login"><span class="nav-ico">⌁</span><span data-i18n="nav_login">登录录制</span></button>
       <button class="nav-item" data-view="campaigns"><span class="nav-ico">▦</span><span data-i18n="nav_campaigns">批量任务</span></button>
+      <button class="nav-item" data-view="quality"><span class="nav-ico">◈</span><span data-i18n="nav_quality">质量评测</span></button>
       <button class="nav-item" data-view="team"><span class="nav-ico">⚑</span><span data-i18n="nav_team">团队 / 工单</span></button>
     </nav>
     <div class="scope-note">
@@ -174,6 +175,38 @@
       </div>
     </section>
 
+    <section id="quality-view" class="view">
+      <div class="quality-hero panel">
+        <div>
+          <p class="panel-kicker" data-i18n="quality_kicker">可重复、可审计的安全质量基线</p>
+          <h2 data-i18n="quality_heading">检测质量与工程健康度</h2>
+          <p class="muted" id="quality-summary" data-i18n="quality_loading">正在读取最新评测结果…</p>
+        </div>
+        <button class="primary" id="quality-run" type="button" data-i18n="quality_run">运行本地靶场</button>
+      </div>
+      <div class="metrics quality-metrics">
+        <article><span>Precision</span><strong id="quality-precision">—</strong><small data-i18n="quality_precision_sub">检出结果中的正确比例</small></article>
+        <article><span>Recall</span><strong id="quality-recall">—</strong><small data-i18n="quality_recall_sub">真值漏洞的检出比例</small></article>
+        <article><span>F1</span><strong id="quality-f1">—</strong><small data-i18n="quality_f1_sub">Precision / Recall 综合</small></article>
+        <article><span data-i18n="quality_coverage">分支覆盖率</span><strong id="quality-coverage">—</strong><small id="quality-coverage-gate">—</small></article>
+      </div>
+      <div class="grid quality-grid">
+        <section class="panel wide">
+          <div class="panel-head"><h2 data-i18n="quality_families">漏洞家族结果</h2><span id="quality-version" class="quality-version"></span></div>
+          <div id="quality-family-list" class="quality-family-list"></div>
+        </section>
+        <section class="panel quality-oracle">
+          <div class="panel-head"><h2 data-i18n="quality_oracle">Ground truth</h2></div>
+          <dl>
+            <div><dt data-i18n="quality_cases">审核位置</dt><dd id="quality-cases">—</dd></div>
+            <div><dt data-i18n="quality_samples">正 / 负样本</dt><dd id="quality-samples">—</dd></div>
+            <div><dt data-i18n="quality_tests">单元测试</dt><dd id="quality-tests">—</dd></div>
+            <div><dt data-i18n="quality_signoff">人工签字</dt><dd id="quality-signoff">—</dd></div>
+          </dl>
+        </section>
+      </div>
+    </section>
+
     <section id="team-view" class="view">
       <div class="settings-shell">
         <nav class="settings-rail" role="tablist" aria-label="Settings">
@@ -252,6 +285,7 @@
                 <label class="setting-row"><span data-i18n="client_id">Client ID</span><input id="sso-client-id" type="text" autocomplete="off"></label>
                 <label class="setting-row"><span data-i18n="client_secret_env">Client Secret 环境变量</span><input id="sso-secret-env" type="text" value="OIDC_CLIENT_SECRET" autocomplete="off"></label>
                 <label class="setting-row"><span data-i18n="redirect_uri">Redirect URI</span><input id="sso-redirect" type="url" placeholder="http://127.0.0.1:8080/api/sso/callback"></label>
+                <label class="setting-row"><span data-i18n="sso_default_tenant">默认租户 ID</span><input id="sso-default-tenant" type="text" value="default" autocomplete="off"></label>
               </div>
               <div class="toolbar settings-footer">
                 <button class="primary" id="sso-save" type="button" data-i18n="btn_save_sso">保存 SSO</button>

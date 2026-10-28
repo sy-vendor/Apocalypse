@@ -64,7 +64,9 @@ def run_due_schedules(storage: Storage, engine: ScanEngine) -> list[str]:
             graphql_url=item.get("graphql_url") or None,
             webhook_url=item.get("webhook_url") or None,
         )
-        result = engine.queue(item["target"], item["profile"])
+        result = engine.queue(
+            item["target"], item["profile"], tenant_id=str(item.get("tenant_id") or "default"),
+        )
         asyncio.run(engine.run(result, allow_private=bool(item.get("allow_private")), options=options))
         storage.mark_schedule_run(
             item["id"],

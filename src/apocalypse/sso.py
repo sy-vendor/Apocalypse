@@ -12,18 +12,22 @@ def validate_oidc_config(raw: dict[str, Any]) -> dict[str, Any]:
     client_id = str(raw.get("client_id", "")).strip()
     redirect_uri = str(raw.get("redirect_uri", "")).strip()
     client_secret_env = str(raw.get("client_secret_env", "OIDC_CLIENT_SECRET")).strip() or "OIDC_CLIENT_SECRET"
+    default_tenant_id = str(raw.get("default_tenant_id") or "default").strip() or "default"
     if not issuer or urlsplit(issuer).scheme not in {"http", "https"}:
         raise ValueError("OIDC issuer must be an absolute http(s) URL")
     if not client_id:
         raise ValueError("OIDC client_id is required")
     if urlsplit(redirect_uri).scheme not in {"http", "https"}:
         raise ValueError("OIDC redirect_uri must be an absolute http(s) URL")
+    if not default_tenant_id.replace("-", "").replace("_", "").isalnum():
+        raise ValueError("OIDC default_tenant_id must be alphanumeric")
     return {
         "issuer": issuer,
         "client_id": client_id,
         "client_secret_env": client_secret_env,
         "redirect_uri": redirect_uri,
         "scopes": str(raw.get("scopes") or "openid profile email"),
+        "default_tenant_id": default_tenant_id,
     }
 
 

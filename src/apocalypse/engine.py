@@ -45,7 +45,7 @@ from .probes import (
     detect_lfi, looks_path_parameter, looks_template_parameter, looks_url_parameter,
     lfi_canaries, score_ssti, ssrf_canaries, ssti_canaries,
 )
-from .scope import ScopeError, ScopePolicy
+from .scope import ScopeError, ScopePolicy, pin_url_for_request
 from .storage import Storage
 from .webhook import deliver_webhook, scan_webhook_payload, validate_webhook_url
 
@@ -293,7 +293,9 @@ class ScanEngine:
             login_flow_obj = None
             login_secrets = dict(options.login_secrets or {})
             if options.login_flow_id and not options.login_flow_path:
-                saved = self.storage.get_login_flow(options.login_flow_id)
+                scan_row = self.storage.get_scan(result.scan_id)
+                flow_tenant = (scan_row or {}).get("tenant_id") or "default"
+                saved = self.storage.get_login_flow(options.login_flow_id, tenant_id=flow_tenant)
                 if not saved:
                     raise ValueError(f"login flow not found: {options.login_flow_id}")
                 login_flow_obj = parse_login_flow_document(
@@ -573,15 +575,20 @@ class ScanEngine:
         self, client: httpx.AsyncClient, scope: ScopePolicy, limiter: RateLimiter,
         result: ScanResult, profile: ScanProfile, url: str, *, headers: dict[str, str] | None = None,
         method: str = "GET", data: list[tuple[str, str]] | None = None,
-        json_body: dict | None = None,
+        json_body: dict | None = None, follow_same_scope_redirects: bool = True,
     ) -> httpx.Response:
-        if result.stats.requests >= profile.max_requests:
-            raise RuntimeError("request budget exhausted")
         current = scope.validate(url)
         for _ in range(5):
+            # Recheck budget before every network hop, including redirects.
+            if result.stats.requests >= profile.max_requests:
+                raise RuntimeError("request budget exhausted")
+            # Re-validate + pin IP immediately before connect to shrink DNS-rebinding windows.
+            current = scope.validate(current)
+            pinned, host_header, _ = pin_url_for_request(current, allow_private=scope.allow_private)
             await limiter.wait()
             result.stats.requests += 1
             request_headers = dict(headers or {})
+            request_headers["Host"] = host_header
             content = None
             if json_body is not None:
                 method = "POST"
@@ -590,15 +597,23 @@ class ScanEngine:
             elif method == "POST" and data is not None:
                 request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
                 content = urlencode(data).encode()
+            extensions = {"sni_hostname": urlsplit(current).hostname} if pinned.startswith("https://") else None
             response = await client.request(
-                method, current, headers=request_headers or None, content=content, follow_redirects=False,
+                method, pinned, headers=request_headers or None, content=content,
+                follow_redirects=False, extensions=extensions,
             )
-            if not response.is_redirect or method != "GET" or json_body is not None:
+            if (
+                not follow_same_scope_redirects
+                or not response.is_redirect
+                or method != "GET"
+                or json_body is not None
+            ):
                 return response
             location = response.headers.get("location")
             if not location:
                 return response
-            current = scope.validate(urljoin(str(response.url), location))
+            # Rebuild next hop against the logical (pre-pin) URL, not the IP form.
+            current = scope.validate(urljoin(current, location))
         raise ScopeError("redirect limit exceeded")
 
     async def _crawl(
@@ -699,7 +714,7 @@ class ScanEngine:
             client, scope, limiter, result, profile, materialized.url,
             method=materialized.method, data=materialized.data,
             json_body=materialized.json_body if isinstance(materialized.json_body, dict) else None,
-            headers=materialized.headers,
+            headers=materialized.headers, follow_same_scope_redirects=False,
         )
 
     async def _authz_probes(

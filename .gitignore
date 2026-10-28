@@ -5,3 +5,7 @@ __pycache__/
 .pytest_cache/
 data/
 reports/
+.coverage
+coverage.xml
+benchmark/results/
+playwright-report/
